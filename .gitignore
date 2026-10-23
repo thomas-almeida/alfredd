@@ -1,0 +1,36 @@
+# Agent Hub (Python)
+.agent-hub/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Env
+.env
+.env*.local
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+build/
+next-env.d.ts
+*.tsbuildinfo
+
+# Supabase
+supabase/.branches/
+supabase/.temp/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs / testes
+*.log
+npm-debug.log*
+coverage/
+
+# Editores e ferramentas locais
+.vscode/
+.idea/
+.vercel/
+src/ALFREDD/
