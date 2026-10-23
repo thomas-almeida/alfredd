@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
+import { SupportButton } from "@/components/layout/SupportButton";
 
 export const metadata: Metadata = {
   title: {
@@ -24,7 +25,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
-      <body>{children}</body>
+      <body>
+        {children}
+        <SupportButton />
+      </body>
     </html>
   );
 }
