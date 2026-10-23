@@ -1,0 +1,177 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens — Clipes (tema escuro, derivado de ai/design-system-examples/).
+ * Mapeados no @theme do Tailwind v4, gerando utilities (bg-surface, text-muted,
+ * rounded-lg, etc.). Dark-first.
+ */
+@theme {
+  /* Superfícies */
+  --color-bg: #0a0a0b;
+  --color-surface: #121214;
+  --color-surface-2: #171719;
+  --color-surface-hover: #1d1d20;
+  --color-elevated: #1a1a1d;
+
+  /* Bordas */
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.14);
+
+  /* Texto */
+  --color-fg: #f4f4f5;
+  --color-muted: #a1a1aa;
+  --color-subtle: #6c6c74;
+
+  /* Acentos de status */
+  --color-accent: #b4f34a;
+  --color-accent-fg: #0a0a0b;
+  --color-danger: #f0394a;
+  --color-warning: #f5a623;
+  --color-info: #5b9dff;
+  --color-twitch: #9147ff;
+
+  /* Tipografia */
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
+    Arial, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas,
+    monospace;
+
+  /* Raios */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+
+  /* Layout */
+  --spacing-sidebar: 248px;
+  --spacing-topbar: 56px;
+}
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    line-height: 1.15;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  button {
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow:
+      0 0 0 2px var(--color-bg),
+      0 0 0 4px var(--color-accent);
+    border-radius: var(--radius-sm);
+  }
+
+  ::selection {
+    background: var(--color-accent);
+    color: var(--color-accent-fg);
+  }
+
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+  }
+}
+
+/* Barra indeterminada dos loaders (EditorLoader). */
+@keyframes loader-slide {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(250%); }
+}
+.loader-indeterminate {
+  animation: loader-slide 1.2s ease-in-out infinite;
+}
+
+/* Cards de streamers em destaque (home) */
+@property --streamer-angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+@keyframes streamer-spin {
+  to { --streamer-angle: 360deg; }
+}
+@keyframes streamer-in {
+  from { opacity: 0; transform: translateY(14px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes streamer-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.streamer-card {
+  position: relative;
+  display: block;
+  border-radius: 14px;
+  padding: 1.5px;
+  background: conic-gradient(from var(--streamer-angle), transparent 0 60%, var(--c) 80%, transparent 100%),
+    var(--color-border);
+  animation: streamer-spin 4s linear infinite, streamer-in 0.5s ease-out both;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+.streamer-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 18px 40px -18px var(--c);
+  animation-duration: 1.4s, 0.5s;
+}
+.streamer-card-inner {
+  position: relative;
+  overflow: hidden;
+  border-radius: 12.5px;
+  background: var(--color-surface);
+  padding: 1.5rem 1rem 1.25rem;
+  text-align: center;
+}
+.streamer-glow {
+  position: absolute;
+  inset: -40% -20% auto;
+  height: 70%;
+  background: radial-gradient(circle, var(--c), transparent 70%);
+  opacity: 0.12;
+  transition: opacity 0.3s ease;
+}
+.streamer-card:hover .streamer-glow { opacity: 0.3; }
+.streamer-ring {
+  position: absolute;
+  inset: -4px;
+  border-radius: 9999px;
+  background: conic-gradient(var(--c), transparent, var(--c));
+  animation: streamer-float 3s ease-in-out infinite;
+  filter: blur(1px);
+}
+@media (prefers-reduced-motion: reduce) {
+  .streamer-card, .streamer-ring { animation: none; }
+}
