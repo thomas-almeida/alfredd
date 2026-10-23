@@ -1,13 +1,14 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { Icon } from "@/components/ui/Icon";
 import { BroadcasterTag } from "./BroadcasterTag";
 import { ClipPlayer } from "./ClipPlayer";
 import type { ClipCardData } from "./ClipCard";
 import { saveClip } from "@/features/library/actions";
+import { UpgradeModal } from "@/features/billing/UpgradeModal";
 import { useAuthModal } from "@/features/auth/AuthModal";
 import { formatViews, timeAgo } from "@/lib/twitch/format";
 
@@ -23,13 +24,20 @@ export function ClipPreviewModal({
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [limited, setLimited] = useState(false);
 
+  const clipKey = clip?.twitchId ?? null;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
+  // Reseta só quando o clipe muda de fato, não a cada re-render do pai.
   useEffect(() => {
     setMsg(null);
     setSaved(false);
-    if (!clip) return;
+    setLimited(false);
+    if (!clipKey) return;
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") onCloseRef.current();
     }
     document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
@@ -38,7 +46,7 @@ export function ClipPreviewModal({
       document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
-  }, [clip, onClose]);
+  }, [clipKey]);
 
   if (!clip) return null;
 
@@ -53,6 +61,10 @@ export function ClipPreviewModal({
           reason: "Crie sua conta para salvar e editar este clipe.",
           onSuccess: () => doSave(),
         });
+        return;
+      }
+      if (res.quotaExceeded) {
+        setLimited(true);
         return;
       }
       if (res.ok) {
@@ -93,7 +105,7 @@ export function ClipPreviewModal({
             watchUrl={clip.url}
             autoPlay={!pending && !saved}
           />
-          {(pending || saved) && (
+          {((pending && !limited) || saved) && (
             <div className="absolute inset-0 rounded-lg bg-black/70 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4">
               <div className="w-11 h-11 rounded-full border-[3px] border-white/20 border-t-accent animate-spin" />
               <p className="text-[#e7e7ea] text-sm font-medium">
@@ -129,8 +141,8 @@ export function ClipPreviewModal({
           </div>
 
           <div className="flex items-center gap-3 mt-4">
-            <Button variant="primary" onClick={doSave} disabled={pending || saved}>
-              {saved ? "Abrindo editor…" : pending ? "Salvando…" : "Salvar e Editar Clip"}
+            <Button variant="primary" onClick={doSave} disabled={(pending && !limited) || saved}>
+              {saved ? "Abrindo editor…" : pending && !limited ? "Salvando…" : "Salvar e Editar Clip"}
             </Button>
             <a
               href={clip.url ?? `https://clips.twitch.tv/${clip.twitchId}`}
@@ -150,6 +162,7 @@ export function ClipPreviewModal({
           {msg && <p className="mt-3 text-[13px] text-muted">{msg}</p>}
         </div>
       </div>
+      <UpgradeModal open={limited} onClose={() => setLimited(false)} />
     </div>
   );
 }

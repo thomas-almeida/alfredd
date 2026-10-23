@@ -11,6 +11,7 @@ export interface SaveResult {
   error?: string;
   already?: boolean;
   needsAuth?: boolean;
+  quotaExceeded?: boolean;
 }
 
 /**
@@ -38,16 +39,17 @@ export async function saveClip(twitchClipId: string): Promise<SaveResult> {
   if (error) return { ok: false, error: error.message };
 
   const res = data as { ok: boolean; error?: string; already?: boolean };
-  revalidatePath("/biblioteca");
-  revalidatePath("/", "layout");
-
   if (!res.ok && res.error === "quota_exceeded") {
     return {
       ok: false,
+      quotaExceeded: true,
       error:
         "Limite do plano Free atingido (5 clipes). Assine o PRO para salvar e editar mais clipes.",
     };
   }
+
+  revalidatePath("/biblioteca");
+  revalidatePath("/", "layout");
   return { ok: res.ok, already: res.already, error: res.error };
 }
 
