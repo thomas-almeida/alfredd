@@ -13,8 +13,10 @@ export default async function ConfiguracoesPage() {
         title="Configurações"
         subtitle="Perfil, preferências, fuso horário, privacidade e LGPD."
       />
-      <ClipLanguageSetting initial={lang} />
-      <DownloadDirectorySetting />
+      <div className="max-w-2xl flex flex-col gap-5">
+        <ClipLanguageSetting initial={lang} />
+        <DownloadDirectorySetting />
+      </div>
     </AppShell>
   );
 }

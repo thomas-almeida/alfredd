@@ -19,7 +19,7 @@ export function ClipLanguageSetting({ initial }: { initial: string }) {
   }
 
   return (
-    <section className="bg-surface border border-border rounded-lg p-5 max-w-[520px]">
+    <section className="bg-surface border border-border rounded-lg p-6 w-full">
       <h2 className="text-base font-semibold">Idioma dos clipes</h2>
       <p className="text-[13px] text-muted mt-1">
         Idioma usado por padrão nas páginas de jogos e streamers. Você ainda pode trocar em cada página.

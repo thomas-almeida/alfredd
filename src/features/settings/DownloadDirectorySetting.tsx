@@ -7,11 +7,14 @@ import { canChooseDownloadDirectory, chooseDownloadDirectory, getDownloadDirecto
 export function DownloadDirectorySetting() {
   const [directory, setDirectory] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
-  const supported = canChooseDownloadDirectory();
+  // Mantém o primeiro render igual no servidor e no cliente; a API só existe no browser.
+  const [supported, setSupported] = useState(false);
 
   useEffect(() => {
-    if (supported) void getDownloadDirectoryName().then(setDirectory).catch(() => undefined);
-  }, [supported]);
+    const available = canChooseDownloadDirectory();
+    setSupported(available);
+    if (available) void getDownloadDirectoryName().then(setDirectory).catch(() => undefined);
+  }, []);
 
   async function choose() {
     setMessage(null);
@@ -25,7 +28,7 @@ export function DownloadDirectorySetting() {
   }
 
   return (
-    <section className="bg-surface border border-border rounded-lg p-5 max-w-[520px]">
+    <section className="bg-surface border border-border rounded-lg p-6 w-full">
       <h2 className="text-base font-semibold">Pasta dos clipes baixados</h2>
       <p className="text-[13px] text-muted mt-1">
         Escolha onde o navegador deve salvar os MP4 exportados. A preferência fica neste navegador e neste computador.
