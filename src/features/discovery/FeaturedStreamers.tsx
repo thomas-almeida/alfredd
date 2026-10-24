@@ -164,11 +164,11 @@ export async function FeaturedStreamers() {
       <div className="relative flex flex-col gap-3 w-full py-2 before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:z-10 before:w-24 before:bg-gradient-to-r before:from-bg before:to-transparent after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:z-10 after:w-24 after:bg-gradient-to-l after:from-bg after:to-transparent">
         {rows.map((row, rowIndex) => (
           <div key={rowIndex} className={`featured-creators-track flex w-max gap-4 px-4 hover:[animation-play-state:paused] ${rowIndex === 1 ? "featured-creators-track-reverse" : ""}`}>
-            {row.map(renderCreator)}
+            {row.flatMap((creator, index) => [renderCreator(creator, index), renderCreator(creator, index + row.length)])}
           </div>
         ))}
       </div>
-      <style>{`@keyframes featured-creators-scroll { from { transform: translateX(0); } to { transform: translateX(-24%); } } @keyframes featured-creators-scroll-reverse { from { transform: translateX(-24%); } to { transform: translateX(0); } } .featured-creators-track { animation: featured-creators-scroll 22.4s ease-in-out infinite alternate; } .featured-creators-track-reverse { animation-name: featured-creators-scroll-reverse; animation-duration: 25.6s; } @media (prefers-reduced-motion: reduce) { .featured-creators-track { animation: none; } }`}</style>
+      <style>{`@keyframes featured-creators-scroll { from { transform: translateX(0); } to { transform: translateX(-50%); } } @keyframes featured-creators-scroll-reverse { from { transform: translateX(-50%); } to { transform: translateX(0); } } .featured-creators-track { animation: featured-creators-scroll 22.4s linear infinite; } .featured-creators-track-reverse { animation-name: featured-creators-scroll-reverse; animation-duration: 25.6s; } @media (prefers-reduced-motion: reduce) { .featured-creators-track { animation: none; } }`}</style>
       {clips.length > 0 && (
         <div className="mt-8 text-center">
           <div className="py-8">
