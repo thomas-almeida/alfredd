@@ -7,6 +7,7 @@ import type { Json } from "@/lib/supabase/database.types";
 import { useEditor } from "@/lib/editor/store";
 import type { ExportMessage, ExportRequest } from "@/lib/export/export.worker";
 import type { Transcript } from "@/lib/transcript/client";
+import { saveToDownloadDirectory } from "@/lib/downloads/directory";
 
 type Phase = "idle" | "encoding" | "uploading" | "done" | "error";
 
@@ -37,6 +38,7 @@ export function ExportPanel({
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
+  const [savingDownload, setSavingDownload] = useState(false);
   const workerRef = useRef<Worker | null>(null);
 
   const supported = typeof window !== "undefined" && "VideoEncoder" in window;
@@ -118,6 +120,24 @@ export function ExportPanel({
     worker.postMessage({ sourceUrl: new URL(sourceUrl, location.href).href, state, captions } satisfies ExportRequest);
   }
 
+  async function download() {
+    if (!downloadUrl) return;
+    setSavingDownload(true);
+    try {
+      const response = await fetch(downloadUrl);
+      const blob = await response.blob();
+      const saved = await saveToDownloadDirectory(blob, fileName);
+      if (!saved) {
+        const anchor = document.createElement("a");
+        anchor.href = downloadUrl;
+        anchor.download = fileName;
+        anchor.click();
+      }
+    } finally {
+      setSavingDownload(false);
+    }
+  }
+
   if (!supported) {
     return (
       <p className="text-[13px] text-muted">
@@ -143,9 +163,9 @@ export function ExportPanel({
           </Button>
         )}
         {downloadUrl && (
-          <a href={downloadUrl} download={fileName}>
-            <Button variant="secondary">Baixar MP4</Button>
-          </a>
+          <Button variant="secondary" onClick={download} disabled={savingDownload}>
+            {savingDownload ? "Salvando…" : "Baixar MP4"}
+          </Button>
         )}
       </div>
       {busy && (
