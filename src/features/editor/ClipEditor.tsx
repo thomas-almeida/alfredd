@@ -571,7 +571,6 @@ function EditorBody({
         </div>
 
         <div className="flex flex-col gap-4 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto max-[1200px]:col-span-2 max-[700px]:col-span-1 max-[700px]:static max-[700px]:max-h-none">
-          <VerticalPreview videoRef={videoRef} srcW={src.w} srcH={src.h} transcript={editorTranscript} captionsEnabled={captionsEnabled} />
           <ExportPanel
             clipId={ingest.clipId}
             persist={ingest.persist}
@@ -582,6 +581,7 @@ function EditorBody({
             fileName={`${(ingest.channel ?? "clip").replace(/\W+/g, "_")}-${title.slice(0, 40).replace(/\W+/g, "_")}.mp4`}
             onExported={() => setExported(true)}
           />
+          <VerticalPreview videoRef={videoRef} srcW={src.w} srcH={src.h} transcript={editorTranscript} captionsEnabled={captionsEnabled} />
           <FocusLayoutPicker srcW={src.w} srcH={src.h} />
           <KeyframeControls />
           <MotionControls videoRef={videoRef} sourceUrl={ingest.sourceUrl} srcW={src.w} srcH={src.h} />
