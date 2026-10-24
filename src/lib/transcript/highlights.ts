@@ -17,6 +17,9 @@ export type Highlight = Trim & {
   score: number; // 0–100
 };
 
+/** Suba quando o prompt ou o parser mudar: invalida os destaques salvos. */
+export const HIGHLIGHT_PROMPT_VERSION = 1;
+
 export type HighlightOptions = {
   count?: number; // quantos momentos (padrão 5)
   minSeconds?: number; // padrão 15

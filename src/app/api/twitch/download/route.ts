@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import {
-  cutVodStream,
+  cachedVodCut,
   parseTwitchUrl,
   pickClipQuality,
   pickVariant,
@@ -10,6 +10,8 @@ import {
   resolveVod,
   TwitchError,
 } from "@/lib/twitch/media";
+import { createReadStream } from "node:fs";
+import { Readable } from "node:stream";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +29,16 @@ function safeName(s: string): string {
       .replace(/^_|_$/g, "")
       .slice(0, 80) || "twitch"
   );
+}
+
+function rangeFor(range: string | null, size: number): { start: number; end: number; status: number } {
+  if (!range) return { start: 0, end: size - 1, status: 200 };
+  const match = /^bytes=(\d+)-(\d*)$/.exec(range);
+  if (!match) return { start: 0, end: size - 1, status: 200 };
+  const start = Number(match[1]);
+  if (start >= size) return { start: size, end: size - 1, status: 416 };
+  const end = Math.min(match[2] ? Number(match[2]) : size - 1, size - 1);
+  return { start, end, status: 206 };
 }
 
 // GET /api/twitch/download?url=<link>
@@ -71,21 +83,37 @@ export async function GET(req: Request) {
     const variant = (wanted && vod.variants.find((v) => v.name === wanted)) || pickVariant(vod.variants);
     const clampedEnd = vod.lengthSeconds > 0 ? Math.min(end, vod.lengthSeconds) : end;
 
-    const { stream } = await cutVodStream({
+    const precise = sp.get("precise") === "1";
+    const cached = await cachedVodCut({
       variantUrl: variant.url,
       start,
       end: clampedEnd,
-      precise: sp.get("precise") === "1",
+      precise,
+      cacheKey: `${ref.id}:${variant.name}:${start.toFixed(3)}-${clampedEnd.toFixed(3)}:${precise ? "precise" : "copy"}`,
     });
 
-    const headers = new Headers({ "Content-Type": "video/mp4", "Cache-Control": "no-store" });
+    const range = rangeFor(req.headers.get("range"), cached.size);
+    if (range.status === 416) {
+      return new Response(null, {
+        status: 416,
+        headers: { "Content-Range": `bytes */${cached.size}`, "Accept-Ranges": "bytes" },
+      });
+    }
+    const stream = Readable.toWeb(createReadStream(cached.file, { start: range.start, end: range.end })) as ReadableStream<Uint8Array>;
+    const headers = new Headers({
+      "Content-Type": "video/mp4",
+      "Accept-Ranges": "bytes",
+      "Content-Length": String(range.end - range.start + 1),
+      "Cache-Control": "private, max-age=1800",
+    });
+    if (range.status === 206) headers.set("Content-Range", `bytes ${range.start}-${range.end}/${cached.size}`);
     if (attachment) {
       headers.set(
         "Content-Disposition",
         `attachment; filename="${safeName(vod.title)}-${Math.floor(start)}-${Math.floor(clampedEnd)}.mp4"`,
       );
     }
-    return new Response(stream, { headers });
+    return new Response(stream, { status: range.status, headers });
   } catch (err) {
     const status = err instanceof TwitchError ? err.status : 500;
     const message = err instanceof Error ? err.message : "Erro ao baixar da Twitch";

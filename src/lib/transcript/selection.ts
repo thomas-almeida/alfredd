@@ -6,7 +6,7 @@
 //    encaixados nas bordas das palavras para nunca cortar fala no meio
 //  - expandToSentence: arredonda a seleção para frases inteiras
 
-import type { Line, Word } from './types.ts';
+import type { Line, Transcript, Word } from './types.ts';
 
 const fold = (s: string) =>
   s.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
@@ -146,4 +146,21 @@ export function wordsForClip(words: Word[], startMs: number, endMs: number): Wor
   return words
     .filter((w) => w.endMs > startMs && w.startMs < endMs)
     .map((w) => ({ ...w, startMs: Math.max(0, w.startMs - startMs), endMs: Math.min(endMs, w.endMs) - startMs }));
+}
+
+/** Recorta a transcrição para a janela [startMs, endMs) e deixa os tempos relativos ao início dela. */
+export function windowTranscript(t: Transcript, win: { startMs: number; endMs: number }): Transcript {
+  const endMs = Math.min(win.endMs, t.durationMs || Infinity);
+  const dur = Math.max(0, endMs - win.startMs);
+  const shift = (ms: number) => Math.min(dur, Math.max(0, ms - win.startMs));
+  const inWin = (x: { startMs: number; endMs: number }) => x.endMs > win.startMs && x.startMs < endMs;
+  const firstWord = t.words.findIndex(inWin);
+  const words = t.words.filter(inWin).map((w) => ({ ...w, startMs: shift(w.startMs), endMs: shift(w.endMs) }));
+  const last = words.length - 1;
+  const clampWord = (i: number) => Math.min(last, Math.max(0, i - firstWord));
+  const lines = words.length
+    ? t.lines.filter(inWin).map((l, i) => ({ ...l, index: i, startMs: shift(l.startMs), endMs: shift(l.endMs), wordStart: clampWord(l.wordStart), wordEnd: clampWord(l.wordEnd) }))
+    : [];
+  const chunks = t.chunks.filter(inWin).map((c, i) => ({ ...c, index: i, startMs: shift(c.startMs), endMs: shift(c.endMs) }));
+  return { ...t, durationMs: dur, words, lines, chunks };
 }

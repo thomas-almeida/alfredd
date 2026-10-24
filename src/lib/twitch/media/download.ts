@@ -3,8 +3,9 @@ import "server-only";
 // Parte de servidor do download: repasse do MP4 do clip e corte de VOD com ffmpeg.
 // Só roda no runtime Node.js (spawn + fs). Nas rotas: export const runtime = "nodejs".
 import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
 import { createWriteStream } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, stat, unlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable } from "node:stream";
@@ -14,6 +15,10 @@ import { buildWindowPlaylist, getSegments, selectWindow } from "./vod.ts";
 
 const FFMPEG = process.env.FFMPEG_PATH ?? "ffmpeg";
 export const MAX_VOD_WINDOW_SECONDS = Number(process.env.MAX_VOD_WINDOW_SECONDS ?? 3 * 60 * 60); // igual ao untwitch: 3 h
+const VOD_CACHE_TTL_MS = Number(process.env.VOD_CACHE_TTL_MS ?? 30 * 60_000);
+const vodCacheDir = mkdir(join(tmpdir(), "alfredd-twitch-vod"), { recursive: true }).then(() => join(tmpdir(), "alfredd-twitch-vod"));
+type CachedVod = { file: string; size: number; at: number; pending?: Promise<CachedVod> };
+const vodCache = new Map<string, CachedVod>();
 
 /**
  * Clip: repassa o MP4 do CDN da Twitch, com suporte a Range (player pula no tempo).
@@ -110,4 +115,54 @@ export async function cutVodToFile(opts: VodCutOptions & { outFile: string }): P
   const { stream, done } = await cutVodStream(opts);
   await pipeline(Readable.fromWeb(stream as never), createWriteStream(opts.outFile));
   await done;
+}
+
+/**
+ * Gera e mantém em disco um corte de VOD. O arquivo é compartilhado entre
+ * play, seek, waveform e exportação até expirar o TTL.
+ */
+export async function cachedVodCut(opts: VodCutOptions & { cacheKey: string }): Promise<CachedVod> {
+  const existing = vodCache.get(opts.cacheKey);
+  if (existing?.file && Date.now() - existing.at < VOD_CACHE_TTL_MS) return existing;
+  if (existing?.pending) return existing.pending;
+
+  const pending = (async () => {
+    const dir = await vodCacheDir;
+    const digest = createHash("sha256").update(opts.cacheKey).digest("hex");
+    const file = join(dir, `${digest}.mp4`);
+    try {
+      const info = await stat(file);
+      if (info.size > 0 && Date.now() - info.mtimeMs < VOD_CACHE_TTL_MS) {
+        const hit = { file, size: info.size, at: info.mtimeMs };
+        vodCache.set(opts.cacheKey, hit);
+        return hit;
+      }
+    } catch {
+      // Ainda não existe; o corte será gerado abaixo.
+    }
+
+    await unlink(file).catch(() => {});
+    const { cacheKey: _cacheKey, ...cut } = opts;
+    await cutVodToFile({ ...cut, outFile: file });
+    const info = await stat(file);
+    const result = { file, size: info.size, at: Date.now() };
+    vodCache.set(opts.cacheKey, result);
+
+    // Limpeza oportunista dos cortes antigos sem varrer o diretório em todo GET.
+    for (const [key, value] of vodCache) {
+      if (key !== opts.cacheKey && !value.pending && Date.now() - value.at >= VOD_CACHE_TTL_MS) {
+        vodCache.delete(key);
+        await unlink(value.file).catch(() => {});
+      }
+    }
+    return result;
+  })();
+
+  vodCache.set(opts.cacheKey, { file: "", size: 0, at: Date.now(), pending });
+  try {
+    return await pending;
+  } catch (error) {
+    vodCache.delete(opts.cacheKey);
+    throw error;
+  }
 }

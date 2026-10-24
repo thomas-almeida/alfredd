@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { lineIndexAt, searchTranscript, selectionToTrim, type Transcript, type Trim } from "@/lib/transcript/client";
+import { lineIndexAt, searchTranscript, selectionToTrim, windowTranscript, type Transcript, type Trim } from "@/lib/transcript/client";
 import type { Highlight } from "@/lib/transcript/client";
 import { UpgradeModal } from "@/features/billing/UpgradeModal";
 
@@ -13,7 +13,7 @@ const fmt = (ms: number) => {
 const EMPTY_WORDS: Transcript["words"] = [];
 const EMPTY_LINES: Transcript["lines"] = [];
 
-export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript, onTrim, maxClipMs = 90_000, autoLoad = false, aiOnly = false, transcriptWindow, timeOffsetMs = 0, tall = false }: {
+export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript, onTrim, maxClipMs = 90_000, autoLoad = false, aiOnly = false, transcriptWindow, timeOffsetMs = 0, tall = false, showHighlights = true, fill = false }: {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   sourceUrl: string;
   transcript: Transcript | null;
@@ -26,6 +26,10 @@ export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript,
   timeOffsetMs?: number;
   /** Usa a altura disponível no painel lateral do editor. */
   tall?: boolean;
+  /** Falso quando os destaques são renderizados fora do painel (HighlightsPanel). */
+  showHighlights?: boolean;
+  /** Ocupa toda a altura do contêiner pai, rolando só a lista. */
+  fill?: boolean;
 }) {
   const [activeLine, setActiveLine] = useState(-1);
   const [query, setQuery] = useState("");
@@ -39,17 +43,11 @@ export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript,
   const [selectionEnd, setSelectionEnd] = useState<number | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
   const autoLoadedRef = useRef(false);
-  const viewTranscript = useMemo(() => {
-    if (!transcript || !timeOffsetMs) return transcript;
-    const shift = (ms: number) => Math.max(0, ms - timeOffsetMs);
-    return {
-      ...transcript,
-      durationMs: Math.max(0, transcript.durationMs - timeOffsetMs),
-      words: transcript.words.map((w) => ({ ...w, startMs: shift(w.startMs), endMs: shift(w.endMs) })),
-      lines: transcript.lines.map((l) => ({ ...l, startMs: shift(l.startMs), endMs: shift(l.endMs) })),
-      chunks: transcript.chunks.map((c) => ({ ...c, startMs: shift(c.startMs), endMs: shift(c.endMs) })),
-    };
-  }, [transcript, timeOffsetMs]);
+  // Recorta à janela servida e deixa os tempos relativos ao player.
+  const windowEnd = transcriptWindow?.endMs;
+  const viewTranscript = useMemo(() => transcript && (timeOffsetMs || windowEnd != null)
+    ? windowTranscript(transcript, { startMs: timeOffsetMs, endMs: windowEnd ?? Infinity })
+    : transcript, [transcript, timeOffsetMs, windowEnd]);
   const words = viewTranscript?.words ?? EMPTY_WORDS;
   const lines = viewTranscript?.lines ?? EMPTY_LINES;
 
@@ -68,6 +66,34 @@ export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript,
 
   const hits = useMemo(() => query.length >= 3 ? searchTranscript(words, query, { limit: 20 }) : [], [words, query]);
   const seek = (ms: number) => { if (videoRef.current) videoRef.current.currentTime = ms / 1000; };
+
+  async function requestHighlights(extra: { force?: boolean; cachedOnly?: boolean } = {}) {
+    const res = await fetch("/api/transcript/highlights", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: sourceUrl, ...transcriptWindow, count: 5, minSeconds: 15, maxSeconds: 60, ...extra }),
+    });
+    const json = await res.json() as { highlights?: Highlight[] | null; cached?: boolean; error?: string; code?: string };
+    return { res, json };
+  }
+
+  function setWindowHighlights(list: Highlight[]) {
+    const end = windowEnd ?? Infinity;
+    setHighlights(list.filter((h) => h.endMs > timeOffsetMs && h.startMs < end)
+      .map((h) => ({ ...h, startMs: Math.max(0, h.startMs - timeOffsetMs), endMs: Math.min(end - timeOffsetMs, h.endMs - timeOffsetMs) })));
+  }
+
+  // Reabre destaques já salvos sem cobrar a cota. Isso é importante para o
+  // editor da Twitch, que usa este painel diretamente (sem HighlightsPanel).
+  const windowStart = transcriptWindow?.startMs;
+  useEffect(() => {
+    if (!transcript || !showHighlights) return;
+    let alive = true;
+    requestHighlights({ cachedOnly: true }).then(({ res, json }) => {
+      if (alive && res.ok && json.highlights?.length) setWindowHighlights(json.highlights);
+    }).catch(() => { /* sem cache: o usuário pode capturar manualmente */ });
+    return () => { alive = false; };
+  }, [transcript, sourceUrl, windowStart, windowEnd, timeOffsetMs, showHighlights]);
 
   async function load() {
     setLoading(true); setError(null);
@@ -90,15 +116,11 @@ export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript,
   async function captureHighlights() {
     setHighlightsLoading(true); setError(null);
     try {
-      const res = await fetch("/api/transcript/highlights", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: sourceUrl, ...transcriptWindow, count: 5, minSeconds: 15, maxSeconds: 60 }),
-      });
-      const json = await res.json() as { highlights?: Highlight[]; error?: string; code?: string };
+      // Com resultados na tela, "Capturar novamente" deve ignorar o cache.
+      const { res, json } = await requestHighlights({ force: highlights.length > 0 });
       if (json.code === "quota_exceeded") setUpgradeOpen(true);
       if (!res.ok) throw new Error(json.error ?? "Não foi possível capturar os destaques.");
-      setHighlights((json.highlights ?? []).map((h) => timeOffsetMs ? { ...h, startMs: Math.max(0, h.startMs - timeOffsetMs), endMs: Math.max(0, h.endMs - timeOffsetMs) } : h));
+      setWindowHighlights(json.highlights ?? []);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setHighlightsLoading(false); }
   }
@@ -126,7 +148,7 @@ export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript,
     setSelectedHighlight(null); onTrim(trim); seek(trim.startMs); sel.removeAllRanges();
   }
 
-  return <div className="flex min-h-56 flex-col gap-2 rounded-md border border-border bg-surface p-3">
+  return <div className={`flex ${fill ? "h-full min-h-0" : tall ? "h-[405px] max-h-[calc(100vh-2rem)]" : "min-h-56"} flex-col gap-2 rounded-md border border-border bg-surface p-3`}>
     <div className="flex items-center gap-2">
       <span className="text-[13px] font-medium">Transcrição</span>
       {!transcript && <Button size="sm" onClick={load} disabled={loading}>{loading ? "Transcrevendo…" : "Carregar"}</Button>}
@@ -135,14 +157,14 @@ export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript,
     {!transcript ? <p className="text-xs text-muted">Carregue a fala para buscar e selecionar um trecho do vídeo.</p> : <>
       {!aiOnly && <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar na fala…" className="rounded-md border border-border-strong bg-surface-2 px-3 py-2 text-sm outline-none" />}
       {hits.length > 0 && <ul className="max-h-24 overflow-auto rounded-md border border-border text-xs">{hits.map((h) => <li key={`${h.wordStart}-${h.startMs}`}><button type="button" onClick={() => seek(h.startMs)} className="w-full px-2 py-1 text-left hover:bg-surface-hover"><span className="mr-2 font-mono text-accent">{fmt(h.startMs)}</span>{h.snippet}</button></li>)}</ul>}
-      <div className="flex flex-wrap items-center gap-2">
+      {(!aiOnly || showHighlights) && <div className="flex flex-wrap items-center gap-2">
         {!aiOnly && <p className="text-xs text-muted">Arraste sobre as palavras ou clique na primeira e na última.</p>}
-        <Button size="md" variant="primary" onClick={captureHighlights} disabled={highlightsLoading}>
-          {highlightsLoading ? "Capturando…" : "Capturar Destaques"}
-        </Button>
-      </div>
+        {showHighlights && <Button size="md" variant="primary" onClick={captureHighlights} disabled={highlightsLoading}>
+          {highlightsLoading ? "Capturando…" : highlights.length ? "Capturar novamente" : "Capturar Destaques"}
+        </Button>}
+      </div>}
       {!aiOnly && selectionStart !== null && selectionEnd === null && <p className="text-xs text-accent">Início marcado. Clique na palavra final.</p>}
-      {highlights.length > 0 && <div className="flex flex-col gap-2 rounded-lg border border-accent/35 bg-gradient-to-br from-accent/10 via-surface to-surface p-3 shadow-sm">
+      {showHighlights && highlights.length > 0 && <div className="flex flex-col gap-2 rounded-lg border border-accent/35 bg-gradient-to-br from-accent/10 via-surface to-surface p-3 shadow-sm">
         <div className="flex items-start justify-between gap-2">
           <div>
             <span className="text-sm font-semibold text-fg">Para virar Clip</span>
@@ -164,7 +186,7 @@ export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript,
           </button>; })}
         </div>
       </div>}
-      <div ref={listRef} onMouseUp={aiOnly ? undefined : onMouseUp} className={`${tall ? "min-h-[20rem] max-h-[calc(100vh-14rem)]" : "max-h-72"} overflow-auto pr-1 text-sm leading-relaxed ${aiOnly ? "select-none" : "select-text"}`}>
+      <div ref={listRef} onMouseUp={aiOnly ? undefined : onMouseUp} className={`${fill || tall ? "min-h-0 flex-1" : "max-h-72"} overflow-auto pr-1 text-sm leading-relaxed ${aiOnly ? "select-none" : "select-text"}`}>
         {lines.map((line) => <div key={line.index} data-line={line.index} className={`flex gap-2 rounded px-1 py-0.5 ${line.index === activeLine ? "bg-accent/15" : ""}`}>
           <button type="button" onClick={() => seek(line.startMs)} className="shrink-0 select-none font-mono text-xs text-muted hover:text-accent">{fmt(line.startMs)}</button>
           <span>{words.slice(line.wordStart, line.wordEnd + 1).map((w, i) => { const wi = line.wordStart + i; const selected = selectionStart !== null && selectionEnd !== null && wi >= Math.min(selectionStart, selectionEnd) && wi <= Math.max(selectionStart, selectionEnd); return <span key={`${line.index}-${i}`} data-w={wi} onClick={aiOnly ? undefined : () => chooseWord(wi)} className={aiOnly ? "" : `cursor-pointer rounded ${selected ? "bg-accent/30" : "hover:bg-surface-hover"}`}>{w.text} </span>; })}</span>

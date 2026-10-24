@@ -30,13 +30,17 @@ import type { ClipStatus, Json } from "@/lib/supabase/database.types";
 import { ClipStatusBadge } from "./ClipStatusBadge";
 import { MOTION_PRESETS, camRectFromFaces, detectPeaks, rmsEnvelope } from "@/lib/editor/motion";
 import { EditorLoader, type LoaderStep } from "./EditorLoader";
+import { VideoLoadingOverlay, type VideoState } from "./VideoLoadingOverlay";
 import { ExportPanel } from "./ExportPanel";
 import { LeaveGuard } from "./LeaveGuard";
 import { Icon } from "@/components/ui/Icon";
 import { Timeline, type Selection } from "./Timeline";
 import { nextClip } from "./actions";
 import { TranscriptPanel } from "./TranscriptPanel";
-import type { Transcript } from "@/lib/transcript/client";
+import { windowTranscript, type Transcript } from "@/lib/transcript/client";
+
+/** Folga em volta do trecho escolhido, para o usuário poder ajustar o corte. */
+const CLIP_MARGIN_MS = 60_000;
 
 type SlotKey = "game" | "cam";
 type Ingest = {
@@ -46,6 +50,8 @@ type Ingest = {
   duration: number;
   /** Proxy same-origin do MP4 da Twitch (Range), usado no <video> e no export. */
   sourceUrl: string;
+  /** Status da preparação da mídia no servidor (só YouTube). */
+  progressUrl?: string;
   persist: boolean;
 };
 
@@ -109,17 +115,31 @@ export function ClipEditor({
   const [saving, setSaving] = useState<"idle" | "saving" | "saved">("idle");
   const init = useEditor((s) => s.init);
 
+  // YouTube com trecho salvo: o servidor corta só o trecho + margem, e o editor
+  // trabalha em tempos relativos a essa janela.
+  const ytStart = youtube?.startMs;
+  const ytEnd = youtube?.endMs;
+  const ytDuration = youtube?.durationMs;
+  const youtubeWindow = useMemo(() => ytStart != null && ytEnd != null && ytDuration != null && ytEnd > ytStart
+    ? { startMs: Math.max(0, Math.round(ytStart - CLIP_MARGIN_MS)), endMs: Math.round(Math.min(Math.max(ytDuration, ytEnd), ytEnd + CLIP_MARGIN_MS)) }
+    : undefined, [ytStart, ytEnd, ytDuration]);
+  const extStart = external?.transcriptWindow?.startMs;
+  const extEnd = external?.transcriptWindow?.endMs;
+  const transcriptWindow = useMemo(() => extStart != null && extEnd != null ? { startMs: extStart, endMs: extEnd } : youtubeWindow, [extStart, extEnd, youtubeWindow]);
+
   // Ingestão do MP4 + carga do projeto salvo.
   useEffect(() => {
     let alive = true;
     (async () => {
+      const w = !external ? youtubeWindow : undefined;
+      const query = youtube ? `videoId=${encodeURIComponent(youtube.videoId)}${w ? `&start=${w.startMs}&end=${w.endMs}` : ""}` : "";
       const externalSource = external ?? (youtube ? {
-        sourceUrl: `/api/youtube/source?videoId=${encodeURIComponent(youtube.videoId)}`,
+        sourceUrl: `/api/youtube/source?${query}`,
         title: youtube.title,
         channel: youtube.channel,
-        durationMs: youtube.durationMs,
-        startMs: youtube.startMs ?? 0,
-        endMs: youtube.endMs ?? youtube.durationMs,
+        durationMs: w ? w.endMs - w.startMs : youtube.durationMs,
+        startMs: (youtube.startMs ?? 0) - (w?.startMs ?? 0),
+        endMs: (youtube.endMs ?? youtube.durationMs) - (w?.startMs ?? 0),
       } : null);
       if (externalSource) {
         const duration = externalSource.durationMs / 1000;
@@ -127,7 +147,8 @@ export function ClipEditor({
         const end = (externalSource.endMs ?? externalSource.durationMs) / 1000;
         init(duration, { segments: [{ start, end }] });
         setPhase("project");
-        setIngest({ clipId: "external", channel: externalSource.channel, status: "novo", duration, sourceUrl: externalSource.sourceUrl, persist: false });
+        const progressUrl = !external && youtube ? `/api/youtube/source?${query}&progress=1` : undefined;
+        setIngest({ clipId: "external", channel: externalSource.channel, status: "novo", duration, sourceUrl: externalSource.sourceUrl, progressUrl, persist: false });
         return;
       }
       const res = await fetch(`/api/clips/${twitchId}/ingest`, { method: "POST" });
@@ -152,7 +173,7 @@ export function ClipEditor({
     return () => {
       alive = false;
     };
-  }, [twitchId, userId, init, youtube, external]);
+  }, [twitchId, userId, init, youtube, external, youtubeWindow]);
 
   // Autosave com debounce de 1 s; primeira edição marca o clipe como em edição.
   useEffect(() => {
@@ -221,7 +242,7 @@ export function ClipEditor({
       userId={userId}
       title={title}
       transcriptUrl={external?.transcriptUrl ?? (youtube ? `https://www.youtube.com/watch?v=${youtube.videoId}` : `https://clips.twitch.tv/${twitchId}`)}
-      transcriptWindow={external?.transcriptWindow}
+      transcriptWindow={transcriptWindow}
       saving={saving}
     />
   );
@@ -252,6 +273,7 @@ function EditorBody({
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
   const [src, setSrc] = useState({ w: 1920, h: 1080 });
+  const [videoState, setVideoState] = useState<VideoState>("loading");
   const layout = useFraming("layout");
   const playing = useEditor((s) => s.playing);
   const router = useRouter();
@@ -260,18 +282,12 @@ function EditorBody({
   const [exported, setExported] = useState(ingest.status === "exportado");
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [captionsEnabled, setCaptionsEnabled] = useState(false);
-  const editorTranscript = useMemo(() => {
-    const offset = transcriptWindow?.startMs ?? 0;
-    if (!transcript || !offset) return transcript;
-    const shift = (ms: number) => Math.max(0, ms - offset);
-    return {
-      ...transcript,
-      durationMs: Math.max(0, transcript.durationMs - offset),
-      words: transcript.words.map((word) => ({ ...word, startMs: shift(word.startMs), endMs: shift(word.endMs) })),
-      lines: transcript.lines.map((line) => ({ ...line, startMs: shift(line.startMs), endMs: shift(line.endMs) })),
-      chunks: transcript.chunks.map((chunk) => ({ ...chunk, startMs: shift(chunk.startMs), endMs: shift(chunk.endMs) })),
-    };
-  }, [transcript, transcriptWindow]);
+  // Transcrição recortada e em tempos relativos ao arquivo servido.
+  const windowStart = transcriptWindow?.startMs;
+  const windowEnd = transcriptWindow?.endMs;
+  const editorTranscript = useMemo(() => transcript && windowStart != null && windowEnd != null
+    ? windowTranscript(transcript, { startMs: windowStart, endMs: windowEnd })
+    : transcript, [transcript, windowStart, windowEnd]);
 
   useEffect(() => {
     const v = videoRef.current;
@@ -472,6 +488,7 @@ function EditorBody({
             autoLoad
             transcriptWindow={transcriptWindow}
             timeOffsetMs={transcriptWindow?.startMs ?? 0}
+            showHighlights={false}
             tall
             onTrim={(trim) => useEditor.getState().setSegments([{ start: trim.startMs / 1000, end: trim.endMs / 1000 }])}
           />
@@ -490,8 +507,15 @@ function EditorBody({
               preload="auto"
               className="absolute inset-0 w-full h-full"
               onClick={togglePlay}
+              onLoadStart={() => setVideoState("loading")}
+              onLoadedData={() => setVideoState("ready")}
+              onCanPlay={() => setVideoState("ready")}
+              onPlaying={() => setVideoState("ready")}
+              onWaiting={() => setVideoState((s) => (s === "ready" ? "buffering" : s))}
+              onError={() => setVideoState("error")}
             />
           <CropOverlay activeKey={activeKey} srcW={src.w} srcH={src.h} />
+          <VideoLoadingOverlay state={videoState} progressUrl={ingest.progressUrl} durationMs={ingest.duration * 1000} />
           </div>
           <Timeline
             duration={ingest.duration}
