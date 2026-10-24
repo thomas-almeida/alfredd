@@ -43,6 +43,8 @@ import { windowTranscript, type Transcript } from "@/lib/transcript/client";
 /** Folga em volta do trecho escolhido, para o usuário poder ajustar o corte. */
 const CLIP_MARGIN_MS = 60_000;
 
+const FOCUS_COLORS = ["#22d3ee", "#fbbf24", "#c084fc", "#fb7185"];
+
 type SlotKey = "game" | "cam";
 type Ingest = {
   clipId: string;
@@ -635,16 +637,17 @@ function FocusOverlay({ srcW, srcH }: { srcW: number; srcH: number }) {
       {panes.map((pane, index) => {
         const r = pane.crop;
         const isActive = pane.id === activePaneId;
+        const color = FOCUS_COLORS[index % FOCUS_COLORS.length]!;
         return (
           <div
             key={pane.id}
             className={`absolute border-2 pointer-events-auto cursor-move ${isActive ? "border-accent" : "border-white/40"}`}
-            style={{ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%`, boxShadow: isActive ? "0 0 0 9999px rgba(0,0,0,0.45)" : undefined, zIndex: isActive ? 2 : 1 }}
+            style={{ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%`, borderColor: color, opacity: isActive ? 1 : 0.72, boxShadow: isActive ? `0 0 0 9999px rgba(0,0,0,0.45), 0 0 0 2px ${color}55` : undefined, zIndex: isActive ? 2 : 1 }}
             onPointerDown={(e) => drag(e, pane.id, "move")}
             onDoubleClick={() => recenter(pane)}
           >
-            <span className="absolute left-1 top-1 text-[11px] bg-black/60 text-white px-1 rounded-sm">{`Foco ${index + 1}`}</span>
-            <div className="absolute -right-1.5 -bottom-1.5 w-3 h-3 bg-accent rounded-sm cursor-nwse-resize" onPointerDown={(e) => drag(e, pane.id, "resize")} />
+            <span className="absolute left-1 top-1 text-[11px] text-black font-semibold px-1 rounded-sm" style={{ backgroundColor: color }}>{`Foco ${index + 1}`}</span>
+            <div className="absolute -right-1.5 -bottom-1.5 w-3 h-3 rounded-sm cursor-nwse-resize" style={{ backgroundColor: color }} onPointerDown={(e) => drag(e, pane.id, "resize")} />
           </div>
         );
       })}
