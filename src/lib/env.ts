@@ -21,6 +21,7 @@ const serverSchema = z.object({
   TWITCH_CLIENT_ID: z.string().min(1).optional(),
   TWITCH_CLIENT_SECRET: z.string().min(1).optional(),
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
+  TELEGRAM_WEBHOOK_SECRET: z.string().min(1).optional(),
   RESEND_API_KEY: z.string().min(1).optional(),
   RESEND_FROM_EMAIL: z.string().email().optional(),
   CRON_SECRET: z.string().min(1).optional(),

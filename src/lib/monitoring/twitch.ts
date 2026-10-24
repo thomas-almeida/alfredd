@@ -1,9 +1,9 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getServerEnv } from "@/lib/env";
 import { twitch, type TwitchClip } from "@/lib/twitch/client";
 import { getEmailGateway } from "@/lib/resend/email";
 import { monitoringEmail } from "./email-template";
+import { sendTelegramAlert } from "@/lib/telegram/bot";
 
 type MonitoringRow = {
   id: string;
@@ -15,7 +15,7 @@ type MonitoringRow = {
   streamers?: { twitch_id: string; display_name: string } | null;
 };
 
-type ChannelRow = { id: string; user_id: string; kind: "email" | "telegram"; address: string | null; active: boolean; verified: boolean };
+type ChannelRow = { id: string; user_id: string; kind: "email" | "telegram"; address: string | null; telegram_chat_id: string | null; active: boolean; verified: boolean };
 
 function sourceKey(row: MonitoringRow) {
   return row.source_type === "game" ? `game:${row.games?.twitch_id}` : `streamer:${row.streamers?.twitch_id}`;
@@ -70,12 +70,12 @@ export async function collectTwitchAlerts(windowMinutes = 30) {
       const userIds = [...new Set(matching.map((row) => row.user_id))];
       if (!userIds.length) continue;
       const { data: channels } = await admin.from("notification_channels")
-        .select("id,user_id,kind,address,active,verified")
-        .in("user_id", userIds).eq("kind", "email").eq("active", true).eq("verified", true);
+        .select("id,user_id,kind,address,telegram_chat_id,active,verified")
+        .in("user_id", userIds).in("kind", ["email", "telegram"]).eq("active", true).eq("verified", true);
       for (const channel of (channels ?? []) as ChannelRow[]) {
         const monitoring = matching.find((row) => row.user_id === channel.user_id);
-        if (!monitoring || !channel.address) continue;
-        const dedupeKey = `${monitoring.id}:${clip.id}:email`;
+        if (!monitoring || (channel.kind === "email" ? !channel.address : !channel.telegram_chat_id)) continue;
+        const dedupeKey = `${monitoring.id}:${clip.id}:${channel.kind}`;
         const { data: delivery } = await admin.from("notification_deliveries").upsert({
           user_id: channel.user_id,
           monitoring_id: monitoring.id,
@@ -86,22 +86,37 @@ export async function collectTwitchAlerts(windowMinutes = 30) {
         }, { onConflict: "dedupe_key", ignoreDuplicates: true }).select("id").maybeSingle();
         if (!delivery) continue;
         queued++;
-        await dispatchEmail(admin, delivery.id, channel.address, clip, first, saved.id);
+        if (channel.kind === "email") await dispatchEmail(admin, delivery.id, channel.address!, clip, first);
+        else await dispatchTelegram(admin, delivery.id, channel.telegram_chat_id!, clip, first);
       }
     }
   }
   return { sources: sources.size, discovered, queued };
 }
 
-async function dispatchEmail(admin: any, deliveryId: string, address: string, clip: TwitchClip, row: MonitoringRow, clipId: string) {
+function links(clip: TwitchClip) {
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  return { editorUrl: `${base}/twitch?url=${encodeURIComponent(clip.url)}` };
+}
+
+async function dispatchEmail(admin: any, deliveryId: string, address: string, clip: TwitchClip, row: MonitoringRow) {
   try {
-    const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    const editorUrl = `${base}/twitch?url=${encodeURIComponent(clip.url)}`;
+    const { editorUrl } = links(clip);
     await getEmailGateway().send({
       to: address,
       subject: `Novo clipe de ${clip.broadcaster_name}: ${clip.title || "sem título"}`,
       html: monitoringEmail({ title: clip.title, creator: clip.broadcaster_name, game: row.games?.name ?? "Twitch", thumbnail: clip.thumbnail_url, clipUrl: clip.url, editorUrl }),
     });
+    await admin.from("notification_deliveries").update({ status: "sent", attempt: 1 }).eq("id", deliveryId);
+  } catch (error) {
+    await admin.from("notification_deliveries").update({ status: "failed", attempt: 1, error: error instanceof Error ? error.message : String(error) }).eq("id", deliveryId);
+  }
+}
+
+async function dispatchTelegram(admin: any, deliveryId: string, chatId: string, clip: TwitchClip, row: MonitoringRow) {
+  try {
+    const { editorUrl } = links(clip);
+    await sendTelegramAlert({ chatId, title: clip.title, creator: clip.broadcaster_name, game: row.games?.name ?? "Twitch", clipUrl: clip.url, editorUrl });
     await admin.from("notification_deliveries").update({ status: "sent", attempt: 1 }).eq("id", deliveryId);
   } catch (error) {
     await admin.from("notification_deliveries").update({ status: "failed", attempt: 1, error: error instanceof Error ? error.message : String(error) }).eq("id", deliveryId);
