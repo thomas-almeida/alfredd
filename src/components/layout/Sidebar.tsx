@@ -259,9 +259,9 @@ export function Sidebar({
                       <img
                         src={`/${youtube ? "youtube" : "twitch"}.svg`}
                         alt=""
-                        width={11}
-                        height={11}
-                        className="absolute -right-1 -bottom-1 h-[11px] w-[11px] rounded-full bg-bg p-px object-contain"
+                        width={14}
+                        height={14}
+                        className="absolute -right-1.5 -bottom-1.5 h-[14px] w-[14px] rounded-full bg-bg p-px object-contain"
                         aria-hidden
                       />
                     </span>
