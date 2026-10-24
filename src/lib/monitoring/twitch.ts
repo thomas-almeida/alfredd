@@ -11,6 +11,7 @@ type MonitoringRow = {
   source_type: "game" | "streamer";
   game_id: string | null;
   streamer_id: string | null;
+  created_at: string;
   games?: { twitch_id: string; name: string } | null;
   streamers?: { twitch_id: string; display_name: string } | null;
 };
@@ -27,10 +28,9 @@ function clipMatches(row: MonitoringRow, clip: TwitchClip) {
 
 export async function collectTwitchAlerts(windowMinutes = 30) {
   const admin = createAdminClient() as any;
-  const since = new Date(Date.now() - windowMinutes * 60_000).toISOString();
   const { data, error } = await admin
     .from("monitorings")
-    .select("id,user_id,source_type,game_id,streamer_id,games(twitch_id,name),streamers(twitch_id,display_name)")
+    .select("id,user_id,source_type,game_id,streamer_id,created_at,games(twitch_id,name),streamers(twitch_id,display_name)")
     .eq("active", true);
   if (error) throw error;
   const monitorings = (data ?? []) as MonitoringRow[];
@@ -44,10 +44,17 @@ export async function collectTwitchAlerts(windowMinutes = 30) {
   let queued = 0;
   for (const rows of sources.values()) {
     const first = rows[0]!;
-    const clips = first.source_type === "game"
-      ? (await twitch.clipsByGame(first.games!.twitch_id, { first: 100, startedAt: since })).data
-      : (await twitch.clipsByBroadcaster(first.streamers!.twitch_id, { first: 100, startedAt: since })).data;
+    const key = sourceKey(first);
+    const { data: cursor } = await admin.from("monitoring_source_cursors").select("last_polled_at").eq("source_key", key).maybeSingle();
+    const lastPoll = cursor?.last_polled_at ? new Date(cursor.last_polled_at).getTime() : Date.now() - windowMinutes * 60_000;
+    // A janela sobreposta cobre o atraso de publicação da Twitch. A entrega é
+    // idempotente por monitoring+clip+canal, então ela não repete alertas.
+    const since = new Date(Math.min(lastPoll - 5 * 60_000, Date.now() - windowMinutes * 60_000)).toISOString();
+    const endedAt = new Date().toISOString();
+    const clips = await fetchAllClips(first, since, endedAt);
     for (const clip of clips) {
+      const matching = rows.filter((row) => clipMatches(row, clip) && new Date(clip.created_at).getTime() >= new Date(row.created_at).getTime());
+      if (!matching.length) continue;
       const gameId = rows.find((row) => row.game_id)?.game_id ?? null;
       const streamerId = rows.find((row) => row.streamer_id)?.streamer_id ?? null;
       const { data: saved, error: saveError } = await admin.from("clips").upsert({
@@ -66,7 +73,6 @@ export async function collectTwitchAlerts(windowMinutes = 30) {
       }, { onConflict: "twitch_id" }).select("id").single();
       if (saveError || !saved) continue;
       discovered++;
-      const matching = rows.filter((row) => clipMatches(row, clip));
       const userIds = [...new Set(matching.map((row) => row.user_id))];
       if (!userIds.length) continue;
       const { data: channels } = await admin.from("notification_channels")
@@ -80,7 +86,7 @@ export async function collectTwitchAlerts(windowMinutes = 30) {
           user_id: channel.user_id,
           monitoring_id: monitoring.id,
           clip_id: saved.id,
-          channel_kind: "email",
+          channel_kind: channel.kind,
           dedupe_key: dedupeKey,
           status: "pending",
         }, { onConflict: "dedupe_key", ignoreDuplicates: true }).select("id").maybeSingle();
@@ -90,8 +96,27 @@ export async function collectTwitchAlerts(windowMinutes = 30) {
         else await dispatchTelegram(admin, delivery.id, channel.telegram_chat_id!, clip, first);
       }
     }
+    await admin.from("monitoring_source_cursors").upsert({ source_key: key, last_polled_at: endedAt, updated_at: endedAt });
   }
   return { sources: sources.size, discovered, queued };
+}
+
+async function fetchAllClips(row: MonitoringRow, startedAt: string, endedAt: string) {
+  const all: TwitchClip[] = [];
+  let after: string | undefined;
+  // Helix limita a paginação prática de uma consulta a aproximadamente 1.000
+  // itens; paginamos todas as páginas disponíveis para não depender da ordem
+  // por visualizações da API.
+  for (let page = 0; page < 10; page++) {
+    const result = row.source_type === "game"
+      ? await twitch.clipsByGame(row.games!.twitch_id, { first: 100, after, startedAt, endedAt })
+      : await twitch.clipsByBroadcaster(row.streamers!.twitch_id, { first: 100, after, startedAt, endedAt });
+    all.push(...result.data);
+    after = result.pagination?.cursor;
+    if (!after) break;
+  }
+  return [...new Map(all.map((clip) => [clip.id, clip])).values()]
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
 }
 
 function links(clip: TwitchClip) {
