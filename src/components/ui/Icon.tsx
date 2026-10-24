@@ -32,7 +32,27 @@ export type IconName =
   | "chevron-right"
   | "plus"
   | "clock"
-  | "eye";
+  | "eye"
+  | "scissors"
+  | "trash"
+  | "undo"
+  | "redo"
+  | "zoom-in"
+  | "zoom-out"
+  | "fit"
+  | "expand"
+  | "collapse"
+  | "play"
+  | "pause"
+  | "skip-back"
+  | "skip-forward"
+  | "repeat"
+  | "volume"
+  | "volume-off"
+  | "unlink"
+  | "link"
+  | "music"
+  | "subtitles";
 
 export function Icon({
   name,
@@ -148,6 +168,127 @@ export function Icon({
         <svg {...p}>
           <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z" />
           <circle cx="12" cy="12" r="3" />
+        </svg>
+      );
+    case "scissors":
+      return (
+        <svg {...p}>
+          <circle cx="6" cy="6" r="3" /><circle cx="6" cy="18" r="3" /><path d="M8.1 8.1 20 20M8.1 15.9 20 4" />
+        </svg>
+      );
+    case "trash":
+      return (
+        <svg {...p}>
+          <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
+        </svg>
+      );
+    case "undo":
+      return (
+        <svg {...p}>
+          <path d="M9 14 4 9l5-5" /><path d="M4 9h11a5 5 0 0 1 0 10h-3" />
+        </svg>
+      );
+    case "redo":
+      return (
+        <svg {...p}>
+          <path d="m15 14 5-5-5-5" /><path d="M20 9H9a5 5 0 0 0 0 10h3" />
+        </svg>
+      );
+    case "zoom-in":
+      return (
+        <svg {...p}>
+          <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4M11 8v6M8 11h6" />
+        </svg>
+      );
+    case "zoom-out":
+      return (
+        <svg {...p}>
+          <circle cx="11" cy="11" r="7" /><path d="m20 20-4-4M8 11h6" />
+        </svg>
+      );
+    case "fit":
+      return (
+        <svg {...p}>
+          <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+        </svg>
+      );
+    case "expand":
+      return (
+        <svg {...p}>
+          <path d="m18 15-6-6-6 6" />
+        </svg>
+      );
+    case "collapse":
+      return (
+        <svg {...p}>
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      );
+    case "play":
+      return (
+        <svg {...p}>
+          <path d="M7 4.5v15l12-7.5z" fill="currentColor" />
+        </svg>
+      );
+    case "pause":
+      return (
+        <svg {...p}>
+          <path d="M8 5v14M16 5v14" strokeWidth="3" />
+        </svg>
+      );
+    case "skip-back":
+      return (
+        <svg {...p}>
+          <path d="M6 5v14M19 5 9 12l10 7z" />
+        </svg>
+      );
+    case "skip-forward":
+      return (
+        <svg {...p}>
+          <path d="M18 5v14M5 5l10 7-10 7z" />
+        </svg>
+      );
+    case "repeat":
+      return (
+        <svg {...p}>
+          <path d="m17 2 4 4-4 4" /><path d="M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4" /><path d="M21 13v2a3 3 0 0 1-3 3H3" />
+        </svg>
+      );
+    case "volume":
+      return (
+        <svg {...p}>
+          <path d="M11 5 6 9H3v6h3l5 4z" /><path d="M15.5 8.5a5 5 0 0 1 0 7M18.5 5.5a9 9 0 0 1 0 13" />
+        </svg>
+      );
+    case "volume-off":
+      return (
+        <svg {...p}>
+          <path d="M11 5 6 9H3v6h3l5 4z" /><path d="m16 9 6 6M22 9l-6 6" />
+        </svg>
+      );
+    case "unlink":
+      return (
+        <svg {...p}>
+          <path d="M9 17H7a5 5 0 0 1 0-10h2M15 7h2a5 5 0 0 1 4 8M3 3l18 18" />
+        </svg>
+      );
+    case "link":
+      return (
+        <svg {...p}>
+          <path d="M9 17H7a5 5 0 0 1 0-10h2M15 7h2a5 5 0 0 1 0 10h-2M8 12h8" />
+        </svg>
+      );
+    case "music":
+      return (
+        <svg {...p}>
+          <path d="M9 18V5l12-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="18" cy="16" r="3" />
+        </svg>
+      );
+    case "subtitles":
+      return (
+        <svg {...p}>
+          <rect x="3" y="5" width="18" height="14" rx="2" />
+          <path d="M6 11h5M13 11h5M6 15h3M11 15h7" />
         </svg>
       );
     default:

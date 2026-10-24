@@ -5,9 +5,12 @@ import { useEffect } from "react";
 import { Icon } from "@/components/ui/Icon";
 
 const perks = [
-  "Clipes salvos e editados sem limite",
-  "Favoritos ilimitados de jogos e streamers",
-  "Até 20 monitoramentos com alertas",
+  "Edite e salve clipes ilimitados",
+  "Monitore clipes em tempo real",
+  "Pegue os melhores momentos com um clique",
+  "Poste antes de todo mundo",
+  "Suporte prioritário",
+  "Grupo de clipadores online",
 ];
 
 /** Popup de upgrade exibido quando o usuário esbarra num limite do plano Free. */
@@ -87,7 +90,7 @@ export function UpgradeModal({
           onClick={onClose}
           className="mt-3 text-[13px] text-muted hover:text-fg"
         >
-          Agora não
+          Perder Oferta e ficar limitado
         </button>
       </div>
     </div>

@@ -1,5 +1,5 @@
 import type { ReactNode, CSSProperties } from "react";
-import { Sidebar, type SidebarStreamer } from "./Sidebar";
+import { Sidebar, type SidebarCreator } from "./Sidebar";
 import { TopBar, type Crumb } from "./TopBar";
 import { AuthModalProvider } from "@/features/auth/AuthModal";
 import { getSession } from "@/lib/auth";
@@ -20,36 +20,65 @@ const publicGrid: CSSProperties = {
 export async function AppShell({
   crumbs,
   children,
+  wide = false,
 }: {
   crumbs?: Crumb[];
   children: ReactNode;
+  wide?: boolean;
 }) {
   const session = await getSession();
   const authed = Boolean(session);
 
   let clipCount = 0;
-  let favStreamers: SidebarStreamer[] = [];
+  let favCreators: SidebarCreator[] = [];
   if (session) {
     const supabase = await createClient();
-    const [lib, favs] = await Promise.all([
+    const [lib, favs, ytFavs] = await Promise.all([
       supabase.from("library_items").select("id", { count: "exact", head: true }),
       supabase
         .from("favorites")
-        .select("id, streamers(login, display_name, thumbnail_url)")
+        .select("id, created_at, streamers(login, display_name, thumbnail_url)")
         .eq("source_type", "streamer")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("youtube_favorites")
+        .select("id, channel_id, title, thumbnail_url, created_at")
         .order("created_at", { ascending: false }),
     ]);
     clipCount = lib.count ?? 0;
-    favStreamers = (favs.data ?? []).flatMap((row) => {
+    const twitch = (favs.data ?? []).flatMap((row) => {
       const s = row.streamers as unknown as {
         login: string;
         display_name: string;
         thumbnail_url: string | null;
       } | null;
       return s
-        ? [{ login: s.login, name: s.display_name, avatar: s.thumbnail_url }]
+        ? [
+            {
+              key: `twitch:${s.login}`,
+              favoriteId: row.id,
+              href: `/streamers/${s.login}`,
+              name: s.display_name,
+              avatar: s.thumbnail_url,
+              platform: "twitch" as const,
+              createdAt: row.created_at,
+            },
+          ]
         : [];
     });
+    const youtube = (ytFavs.data ?? []).map((row) => ({
+      key: `youtube:${row.channel_id}`,
+      favoriteId: row.id,
+      href: `/youtube?channel=${encodeURIComponent(row.channel_id)}`,
+      name: row.title,
+      avatar: row.thumbnail_url,
+      platform: "youtube" as const,
+      createdAt: row.created_at,
+    }));
+    // Streamers e YouTubers convivem numa lista só, do mais recente ao mais antigo.
+    favCreators = [...twitch, ...youtube]
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(({ createdAt: _, ...c }) => c);
   }
 
   return (
@@ -58,7 +87,7 @@ export async function AppShell({
         className="grid min-h-screen max-[860px]:[grid-template-columns:1fr!important] max-[860px]:[grid-template-areas:'topbar'_'main']"
         style={authed ? authedGrid : publicGrid}
       >
-        {authed && <Sidebar clipCount={clipCount} streamers={favStreamers} />}
+        {authed && <Sidebar clipCount={clipCount} creators={favCreators} />}
         <TopBar
           crumbs={crumbs}
           email={session?.email ?? null}
@@ -67,8 +96,10 @@ export async function AppShell({
         <main
           className={
             authed
-              ? "[grid-area:main] p-6 max-w-[1400px] w-full mx-auto max-[860px]:p-4"
-              : "[grid-area:main] p-6 w-full max-w-[1120px] mx-auto max-[860px]:p-4"
+              ? wide
+                ? "[grid-area:main] min-w-0 w-full max-w-none overflow-x-hidden p-3 max-[860px]:p-4"
+                : "[grid-area:main] min-w-0 overflow-x-hidden p-6 max-w-[1400px] w-full mx-auto max-[860px]:p-4"
+              : "[grid-area:main] min-w-0 overflow-x-hidden p-6 w-full max-w-[1120px] mx-auto max-[860px]:p-4"
           }
         >
           {children}

@@ -14,16 +14,20 @@ export type SubscriptionStatus =
 
 export const QUOTAS = {
   free: {
-    favoriteGames: 3,
-    favoriteStreamers: 3,
+    favoriteGames: Infinity,
+    favoriteStreamers: Infinity,
     savedClips: 5,
     activeMonitorings: 0,
+    transcriptsPerDay: 3,
+    highlightsPerDay: 3,
   },
   pro: {
     favoriteGames: Infinity,
     favoriteStreamers: Infinity,
     savedClips: Infinity,
     activeMonitorings: 20,
+    transcriptsPerDay: 50,
+    highlightsPerDay: 30,
   },
 } as const satisfies Record<Plan, Record<string, number>>;
 

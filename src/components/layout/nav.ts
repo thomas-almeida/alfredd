@@ -4,6 +4,7 @@ export interface NavItem {
   label: string;
   href: string;
   icon: IconName;
+  platformLogo?: "twitch" | "youtube";
   /** Marca recursos exclusivos do plano PRO (apenas rótulo nesta fase). */
   pro?: boolean;
 }
@@ -28,7 +29,14 @@ export const navSections: NavSection[] = [
     ],
   },
   {
-    title: "PRO",
+    title: "Clipe Mais Rápido",
+    items: [
+      { label: "VODs da Twitch", href: "/twitch", icon: "film", platformLogo: "twitch" },
+      { label: "Vídeos do YouTube", href: "/youtube", icon: "play", platformLogo: "youtube" },
+    ],
+  },
+  {
+    title: "RECURSOS INTELIGENTES",
     items: [
       { label: "Monitoramentos", href: "/monitoramentos", icon: "radar", pro: true },
       { label: "Notificações", href: "/notificacoes", icon: "bell", pro: true },

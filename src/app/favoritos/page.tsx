@@ -21,17 +21,19 @@ interface StreamerJoin {
   display_name: string;
 }
 
+const SUBTITLE = "Atalhos para jogos, streamers e YouTubers.";
+
 export default async function FavoritosPage() {
   const session = await getSession();
 
   if (!session) {
     return (
       <AppShell crumbs={[{ label: "Favoritos" }]}>
-        <PageHeader title="Favoritos" subtitle="Atalhos para jogos e streamers." />
+        <PageHeader title="Favoritos" subtitle={SUBTITLE} />
         <EmptyState
           icon="star"
           title="Entre para ver seus favoritos"
-          description="Faça login para favoritar jogos e streamers."
+          description="Faça login para favoritar jogos e criadores."
           action={
             <Link href="/entrar?next=/favoritos">
               <Button variant="primary">Entrar</Button>
@@ -43,13 +45,25 @@ export default async function FavoritosPage() {
   }
 
   const supabase = await createClient();
-  const { data } = await supabase
-    .from("favorites")
-    .select(
-      "id, source_type, games(twitch_id, name), streamers(login, display_name)",
-    )
-    .order("created_at", { ascending: false });
+  const [{ data }, { data: ytData }] = await Promise.all([
+    supabase
+      .from("favorites")
+      .select(
+        "id, source_type, games(twitch_id, name), streamers(login, display_name)",
+      )
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("youtube_favorites")
+      .select("id, channel_id, title")
+      .order("created_at", { ascending: false }),
+  ]);
 
+  const youtubers: FavoriteView[] = (ytData ?? []).map((row) => ({
+    id: row.id,
+    href: `/youtube?channel=${encodeURIComponent(row.channel_id)}`,
+    label: row.title,
+    type: "youtuber",
+  }));
   const games: FavoriteView[] = [];
   const streamers: FavoriteView[] = [];
 
@@ -75,23 +89,17 @@ export default async function FavoritosPage() {
     }
   }
 
-  const empty = games.length === 0 && streamers.length === 0;
+  const empty =
+    games.length === 0 && streamers.length === 0 && youtubers.length === 0;
 
   return (
     <AppShell crumbs={[{ label: "Favoritos" }]}>
-      <PageHeader
-        title="Favoritos"
-        subtitle={
-          session.isPro
-            ? "Atalhos para jogos e streamers (PRO, sem limite)."
-            : "Atalhos para jogos e streamers. Free: até 3 de cada."
-        }
-      />
+      <PageHeader title="Favoritos" subtitle={SUBTITLE} />
       {empty ? (
         <EmptyState
           icon="star"
           title="Nenhum favorito ainda"
-          description="Favorite jogos e streamers nos feeds para acessá-los rápido."
+          description="Favorite jogos, streamers e YouTubers para acessá-los rápido."
           action={
             <Link href="/explorar">
               <Button variant="primary">Explorar</Button>
@@ -104,7 +112,7 @@ export default async function FavoritosPage() {
             <h2 className="text-base mb-3 flex items-center gap-2">
               Jogos{" "}
               <span className="text-xs text-subtle font-normal">
-                {games.length}/{session.isPro ? "∞" : 3}
+                {games.length}
               </span>
             </h2>
             <div className="flex flex-wrap gap-2">
@@ -121,7 +129,7 @@ export default async function FavoritosPage() {
             <h2 className="text-base mb-3 flex items-center gap-2">
               Streamers{" "}
               <span className="text-xs text-subtle font-normal">
-                {streamers.length}/{session.isPro ? "∞" : 3}
+                {streamers.length}
               </span>
             </h2>
             <div className="flex flex-wrap gap-2">
@@ -130,6 +138,23 @@ export default async function FavoritosPage() {
               ) : (
                 <span className="text-[13px] text-subtle">
                   Nenhum streamer favoritado.
+                </span>
+              )}
+            </div>
+          </section>
+          <section>
+            <h2 className="text-base mb-3 flex items-center gap-2">
+              YouTubers{" "}
+              <span className="text-xs text-subtle font-normal">
+                {youtubers.length}
+              </span>
+            </h2>
+            <div className="flex flex-wrap gap-2">
+              {youtubers.length ? (
+                youtubers.map((f) => <FavoriteChip key={f.id} fav={f} />)
+              ) : (
+                <span className="text-[13px] text-subtle">
+                  Nenhum YouTuber favoritado.
                 </span>
               )}
             </div>

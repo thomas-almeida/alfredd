@@ -1,10 +1,13 @@
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Badge } from "@/components/ui/Badge";
+import { ProPageGate } from "@/features/billing/ProPageGate";
+import { getSession } from "@/lib/auth";
 
 export const metadata = { title: "Monitoramentos" };
 
-export default function MonitoramentosPage() {
+export default async function MonitoramentosPage() {
+  const session = await getSession();
   return (
     <AppShell crumbs={[{ label: "Monitoramentos" }]}>
       <PageHeader
@@ -17,6 +20,7 @@ export default function MonitoramentosPage() {
         title="Recurso exclusivo do PRO"
         description="O monitoramento compartilhado (uma coleta serve todos os assinantes) e os alertas entram na Fase 3."
       />
+      <ProPageGate open={!session?.isPro} title="Recurso exclusivo do PRO" description="Monitoramentos e alertas são recursos premium. Assine o PRO para acompanhar canais automaticamente." />
     </AppShell>
   );
 }

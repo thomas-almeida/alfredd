@@ -12,13 +12,11 @@ export interface ActionResult {
 }
 
 function quotaMessage(error?: string): string | undefined {
-  if (error === "quota_exceeded")
-    return "Limite do plano Free atingido (3 por tipo). Remova um favorito ou assine o PRO.";
   if (error === "unauthenticated") return "Faça login para favoritar.";
   return error;
 }
 
-/** Remove um favorito (libera cota). */
+/** Remove um favorito de jogo ou streamer. */
 export async function removeFavorite(
   favoriteId: string,
 ): Promise<{ ok: boolean }> {
@@ -32,7 +30,49 @@ export async function removeFavorite(
   return { ok: !error };
 }
 
-/** Favorita um jogo (upsert do catálogo + cota atômica no backend). */
+/** Remove um canal do YouTube dos favoritos. */
+export async function removeYoutubeFavorite(
+  favoriteId: string,
+): Promise<{ ok: boolean }> {
+  const supabase = await createClient();
+  const { error } = await supabase
+    .from("youtube_favorites")
+    .delete()
+    .eq("id", favoriteId);
+  revalidatePath("/favoritos");
+  revalidatePath("/", "layout");
+  return { ok: !error };
+}
+
+/** Favorita um canal do YouTube (tabela própria, sem catálogo). */
+export async function favoriteYoutuber(input: {
+  channelId: string;
+  title: string;
+  handle: string | null;
+  thumbnailUrl: string | null;
+}): Promise<ActionResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "unauthenticated" };
+
+  const supabase = await createClient();
+  const { error } = await supabase.from("youtube_favorites").upsert(
+    {
+      user_id: session.userId,
+      channel_id: input.channelId,
+      title: input.title,
+      handle: input.handle,
+      thumbnail_url: input.thumbnailUrl,
+    },
+    { onConflict: "user_id,channel_id" },
+  );
+  if (error) return { ok: false, error: "Não foi possível favoritar o canal." };
+
+  revalidatePath("/favoritos");
+  revalidatePath("/", "layout");
+  return { ok: true };
+}
+
+/** Favorita um jogo (upsert do catálogo no backend). */
 export async function favoriteGame(input: {
   twitchId: string;
   name: string;
@@ -66,7 +106,7 @@ export async function favoriteGame(input: {
   return { ok: res.ok, error: quotaMessage(res.error), already: res.already };
 }
 
-/** Favorita um streamer (upsert do catálogo + cota atômica no backend). */
+/** Favorita um streamer (upsert do catálogo no backend). */
 export async function favoriteStreamer(input: {
   twitchId: string;
   login: string;

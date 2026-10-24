@@ -9,11 +9,11 @@ export const metadata = { title: "Assinatura" };
 const free = [
   "Pesquisa e navegação sem login",
   "ClipScore básico",
-  "3 jogos e 3 streamers favoritos",
+  "Favoritos ilimitados de jogos e criadores",
   "5 clipes salvos no total",
 ];
 const pro = [
-  "Favoritos e biblioteca sem limites artificiais",
+  "Biblioteca sem limites artificiais",
   "Até 20 monitoramentos ativos",
   "Alertas por Telegram e e-mail",
   "Filtros e histórico avançados",
@@ -29,8 +29,8 @@ const highlights = [
 const compare: [string, string | boolean, string | boolean][] = [
   ["Busca de jogos e streamers", true, true],
   ["ClipScore", "Básico", "Completo"],
-  ["Jogos favoritos", "3", "Ilimitado"],
-  ["Streamers favoritos", "3", "Ilimitado"],
+  ["Jogos favoritos", "Ilimitado", "Ilimitado"],
+  ["Criadores favoritos", "Ilimitado", "Ilimitado"],
   ["Clipes salvos", "5", "Ilimitado"],
   ["Monitoramentos ativos", false, "20"],
   ["Alertas por Telegram e e-mail", false, true],

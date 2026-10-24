@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
+import { ProActionButton } from "@/features/billing/ProActionButton";
 import { Badge } from "@/components/ui/Badge";
 import { RecommendedClips } from "@/features/clips/RecommendedClips";
 import { FeedSort } from "@/features/clips/FeedSort";
@@ -127,9 +128,7 @@ export default async function StreamerPage({
                 displayName={displayName}
                 thumbnailUrl={avatar}
               />
-              <Link href="/assinatura">
-                <Button variant="primary">Monitorar (PRO)</Button>
-              </Link>
+              <ProActionButton />
             </>
           ) : undefined
         }

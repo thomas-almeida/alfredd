@@ -2,7 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
-import { favoriteGame, favoriteStreamer, type ActionResult } from "./actions";
+import {
+  favoriteGame,
+  favoriteStreamer,
+  favoriteYoutuber,
+  type ActionResult,
+} from "./actions";
 import { useAuthModal } from "@/features/auth/AuthModal";
 
 type GameProps = {
@@ -18,8 +23,17 @@ type StreamerProps = {
   displayName: string;
   thumbnailUrl: string | null;
 };
+type YoutuberProps = {
+  kind: "youtuber";
+  channelId: string;
+  title: string;
+  handle: string | null;
+  thumbnailUrl: string | null;
+};
 
-export function FavoriteButton(props: GameProps | StreamerProps) {
+export function FavoriteButton(
+  props: GameProps | StreamerProps | YoutuberProps,
+) {
   const { openAuth } = useAuthModal();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
@@ -34,6 +48,13 @@ export function FavoriteButton(props: GameProps | StreamerProps) {
           twitchId: props.twitchId,
           name: props.name,
           boxArtUrl: props.boxArtUrl,
+        });
+      } else if (props.kind === "youtuber") {
+        res = await favoriteYoutuber({
+          channelId: props.channelId,
+          title: props.title,
+          handle: props.handle,
+          thumbnailUrl: props.thumbnailUrl,
         });
       } else {
         res = await favoriteStreamer({

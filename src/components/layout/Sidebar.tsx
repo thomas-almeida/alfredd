@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import { navSections } from "./nav";
+import { removeFavorite, removeYoutubeFavorite } from "@/features/favorites/actions";
 
 function isActive(pathname: string, href: string): boolean {
   if (href === "/") return pathname === "/";
@@ -16,26 +17,41 @@ const COLLAPSED_KEY = "sidebar_collapsed";
 const COLLAPSED_WIDTH = "64px";
 const STREAMERS_HIDDEN_KEY = "sidebar_streamers_hidden";
 
-export interface SidebarStreamer {
-  login: string;
+/** Criador favoritado (streamer da Twitch ou canal do YouTube). */
+export interface SidebarCreator {
+  key: string;
+  favoriteId: string;
+  href: string;
   name: string;
   avatar: string | null;
+  platform: "twitch" | "youtube";
 }
 
 export function Sidebar({
   clipCount = 0,
-  streamers = [],
+  creators = [],
 }: {
   clipCount?: number;
-  streamers?: SidebarStreamer[];
+  creators?: SidebarCreator[];
 }) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
   const [streamersHidden, setStreamersHidden] = useState(false);
+  const [removedCreators, setRemovedCreators] = useState<Set<string>>(new Set());
+  const [confirmCreator, setConfirmCreator] = useState<SidebarCreator | null>(null);
+  const [removing, startRemoving] = useTransition();
+
+  // No editor a sidebar entra recolhida (sem persistir) para dar espaço aos controles.
+  const inEditor = pathname.endsWith("/editor");
 
   useEffect(() => {
     try {
-      setCollapsed(localStorage.getItem(COLLAPSED_KEY) === "1");
+      setCollapsed(inEditor || localStorage.getItem(COLLAPSED_KEY) === "1");
+    } catch {}
+  }, [inEditor]);
+
+  useEffect(() => {
+    try {
       setStreamersHidden(localStorage.getItem(STREAMERS_HIDDEN_KEY) === "1");
     } catch {}
   }, []);
@@ -58,10 +74,25 @@ export function Sidebar({
 
   function toggle() {
     setCollapsed((c) => {
+      if (inEditor) return !c;
       try {
         localStorage.setItem(COLLAPSED_KEY, c ? "0" : "1");
       } catch {}
       return !c;
+    });
+  }
+
+  function confirmRemove() {
+    if (!confirmCreator) return;
+    const creator = confirmCreator;
+    startRemoving(async () => {
+      const result = creator.platform === "youtube"
+        ? await removeYoutubeFavorite(creator.favoriteId)
+        : await removeFavorite(creator.favoriteId);
+      if (result.ok) {
+        setRemovedCreators((current) => new Set(current).add(creator.key));
+        setConfirmCreator(null);
+      }
     });
   }
 
@@ -112,7 +143,18 @@ export function Sidebar({
                   aria-current={active ? "page" : undefined}
                   title={collapsed ? item.label : undefined}
                 >
-                  <Icon name={item.icon} className="shrink-0 opacity-90" />
+                  {item.platformLogo ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={`/${item.platformLogo}.svg`}
+                      alt=""
+                      width={18}
+                      height={18}
+                      className="shrink-0 object-contain"
+                    />
+                  ) : (
+                    <Icon name={item.icon} className="shrink-0 opacity-90" />
+                  )}
                   {!collapsed && <span>{item.label}</span>}
                   {item.href === "/biblioteca" && clipCount > 0 && !collapsed && (
                     <span className="ml-auto min-w-5 px-1.5 py-px rounded-full bg-surface-2 text-[0.6875rem] font-semibold text-muted text-center tabular-nums">
@@ -136,8 +178,8 @@ export function Sidebar({
                 className="flex items-center gap-1 text-xs uppercase tracking-wider text-subtle px-2 pt-2 pb-1 hover:text-fg"
                 aria-expanded={!streamersHidden}
               >
-                Streamers favoritos
-                <span className="normal-case tracking-normal">({streamers.length})</span>
+                Criadores favoritos
+                <span className="normal-case tracking-normal">({creators.length})</span>
                 <Icon
                   name="chevron-right"
                   width={14}
@@ -147,41 +189,79 @@ export function Sidebar({
               </button>
             )}
             {(collapsed || !streamersHidden) &&
-              streamers.map((s) => {
-                const href = `/streamers/${s.login}`;
-                const active = isActive(pathname, href);
-                return (
-                  <Link
-                    key={s.login}
-                    href={href}
-                    className={cn(
-                      "flex items-center gap-3 py-1.5 rounded-sm text-[13px] font-medium transition-colors",
-                      collapsed ? "justify-center px-0" : "px-2",
-                      active
-                        ? "bg-surface-hover text-fg"
-                        : "text-muted hover:bg-surface-2 hover:text-fg",
-                    )}
-                    aria-current={active ? "page" : undefined}
-                    title={collapsed ? s.name : undefined}
-                  >
-                    {s.avatar ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={s.avatar} alt="" className="w-5 h-5 rounded-full shrink-0 object-cover" />
-                    ) : (
-                      <span className="w-5 h-5 rounded-full shrink-0 bg-surface-2 text-[0.625rem] font-bold flex items-center justify-center">
-                        {s.name.charAt(0).toUpperCase()}
-                      </span>
-                    )}
+              creators.filter((s) => !removedCreators.has(s.key)).map((s) => {
+                const youtube = s.platform === "youtube";
+                const active = youtube ? pathname === "/youtube" : isActive(pathname, s.href);
+                const className = cn(
+                  "flex items-center gap-3 py-1.5 rounded-sm text-[13px] font-medium transition-colors",
+                  collapsed ? "justify-center px-0" : "px-2",
+                  active
+                    ? "bg-surface-hover text-fg"
+                    : "text-muted hover:bg-surface-2 hover:text-fg",
+                );
+                const platformLabel = youtube ? "YouTube" : "Twitch";
+                const content = (
+                  <>
+                    <span className="relative shrink-0">
+                      {s.avatar ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={s.avatar}
+                          alt=""
+                          referrerPolicy="no-referrer"
+                          className="w-5 h-5 rounded-full object-cover"
+                        />
+                      ) : (
+                        <span className="w-5 h-5 rounded-full bg-surface-2 text-[0.625rem] font-bold flex items-center justify-center">
+                          {s.name.charAt(0).toUpperCase()}
+                        </span>
+                      )}
+                      <span
+                        className={cn(
+                          "absolute -right-0.5 -bottom-0.5 w-2 h-2 rounded-full ring-2 ring-bg",
+                          youtube ? "bg-danger" : "bg-info",
+                        )}
+                        aria-hidden
+                      />
+                    </span>
                     {!collapsed && <span className="truncate">{s.name}</span>}
+                    <span className="sr-only">({platformLabel})</span>
+                  </>
+                );
+                const title = `${s.name} · ${platformLabel}`;
+                const item = youtube ? (
+                  <Link
+                    key={s.key}
+                    href={s.href}
+                    className={className}
+                    title={title}
+                  >
+                    {content}
+                  </Link>
+                ) : (
+                  <Link
+                    key={s.key}
+                    href={s.href}
+                    className={className}
+                    aria-current={active ? "page" : undefined}
+                    title={title}
+                  >
+                    {content}
                   </Link>
                 );
+                return <div key={s.key} className="group relative">
+                  {item}
+                  {!collapsed && <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setConfirmCreator(s); }} className="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted opacity-0 transition-opacity hover:bg-danger hover:text-white group-hover:opacity-100" aria-label={`Desfavoritar ${s.name}`} title="Desfavoritar">
+                    −
+                  </button>}
+                </div>;
               })}
             {!collapsed && !streamersHidden && (
               <Link
                 href="/favoritos"
                 className="px-2 py-1 text-xs text-subtle hover:text-fg"
               >
-                {streamers.length ? "Ver todos os favoritos" : "Nenhum streamer favoritado"}
+                {creators.length ? "Ver todos os favoritos" : "Nenhum criador favoritado"}
               </Link>
             )}
           </div>
@@ -190,20 +270,16 @@ export function Sidebar({
         ))}
 
       </nav>
-      <div className={cn("pt-4", collapsed && "hidden")}>
-        <Link
-          href="/assinatura"
-          className="block p-3 border border-border rounded-md bg-surface hover:border-border-strong"
-        >
-          <div className="text-[13px] font-semibold">Plano Free</div>
-          <div className="text-xs text-subtle mt-0.5">
-            3 jogos · 3 streamers · 5 clipes
+      {confirmCreator && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="unfavorite-title" onClick={() => !removing && setConfirmCreator(null)}>
+        <div className="w-full max-w-sm rounded-lg border border-border-strong bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-3">
+            {confirmCreator.avatar ? <img src={confirmCreator.avatar} alt="" referrerPolicy="no-referrer" className="h-12 w-12 rounded-full object-cover" /> : <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-lg font-bold">{confirmCreator.name.charAt(0).toUpperCase()}</span>}
+            <div><h2 id="unfavorite-title" className="font-semibold">Desfavoritar criador?</h2><p className="text-xs text-muted">{confirmCreator.name}</p></div>
           </div>
-          <span className="inline-block mt-2 text-xs font-semibold text-accent">
-            Conhecer o PRO
-          </span>
-        </Link>
-      </div>
+          <p className="mt-4 text-sm text-muted">Você deixará de seguir este criador na sua lista de favoritos. No plano Free, o espaço usado não será devolvido.</p>
+          <div className="mt-5 flex justify-end gap-2"><button type="button" className="rounded px-3 py-2 text-sm text-muted hover:bg-surface-2" disabled={removing} onClick={() => setConfirmCreator(null)}>Cancelar</button><button type="button" className="rounded bg-danger px-3 py-2 text-sm font-semibold text-white hover:brightness-110" disabled={removing} onClick={confirmRemove}>{removing ? "Removendo…" : "Desfavoritar"}</button></div>
+        </div>
+      </div>}
     </aside>
   );
 }
