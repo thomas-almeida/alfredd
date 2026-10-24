@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import { TranscriptPanel } from "@/features/editor/TranscriptPanel";
 import type { Transcript, Trim } from "@/lib/transcript/client";
+import { saveTwitchVod } from "@/features/library/actions";
 
 // Espelha a resposta de /api/twitch/resolve (sem as URLs assinadas, que nunca chegam ao cliente).
 type ClipOption = { quality: string; frameRate: number; codecs?: string };
@@ -46,16 +47,14 @@ function fmtTime(total: number): string {
   return h > 0 ? `${h}:${mm}:${ss}` : `${m}:${ss}`;
 }
 
-export function TwitchDownloader() {
-  const [url, setUrl] = useState("");
+export function TwitchDownloader({ initialUrl }: { initialUrl?: string }) {
+  const [url, setUrl] = useState(initialUrl ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [data, setData] = useState<Resolved | null>(null);
   const [resolvedUrl, setResolvedUrl] = useState("");
 
-  async function onSubmit(e: FormEvent) {
-    e.preventDefault();
-    const link = url.trim();
+  async function resolve(link: string) {
     if (!link) return;
     setLoading(true);
     setError(null);
@@ -74,6 +73,17 @@ export function TwitchDownloader() {
     } finally {
       setLoading(false);
     }
+  }
+
+  useEffect(() => {
+    if (initialUrl) void resolve(initialUrl);
+    // O link inicial só é resolvido na entrada da tela.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialUrl]);
+
+  function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    void resolve(url.trim());
   }
 
   return (
@@ -122,6 +132,7 @@ function ClipPanel({ clip, sourceUrl }: { clip: ClipInfo; sourceUrl: string }) {
     title={clip.title}
     channel={clip.channel}
     durationMs={clip.durationSeconds * 1000}
+    showHighlights={false}
   />;
 }
 
@@ -144,6 +155,10 @@ function VodPanel({ vod, sourceUrl }: { vod: VodInfo; sourceUrl: string }) {
     channel={vod.channel}
     durationMs={vod.lengthSeconds * 1000}
     transcriptWindow={{ startMs: 0, endMs: vod.lengthSeconds * 1000 }}
+    showHighlights
+    vodId={vod.id}
+    thumbnailUrl={vod.thumbnailUrl}
+    vodLengthSeconds={vod.lengthSeconds}
   />;
 }
 
@@ -155,6 +170,10 @@ function TwitchTranscriptMedia({
   durationMs,
   transcriptWindow,
   timeOffsetMs = 0,
+  showHighlights = true,
+  vodId,
+  thumbnailUrl = null,
+  vodLengthSeconds,
 }: {
   sourceUrl: string;
   mediaUrl: string;
@@ -163,21 +182,28 @@ function TwitchTranscriptMedia({
   durationMs: number;
   transcriptWindow?: { startMs: number; endMs: number };
   timeOffsetMs?: number;
+  showHighlights?: boolean;
+  vodId?: string;
+  thumbnailUrl?: string | null;
+  vodLengthSeconds?: number;
 }) {
   const router = useRouter();
   const videoRef = useRef<HTMLVideoElement>(null);
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [trim, setTrim] = useState<Trim | null>(null);
   const [previewTime, setPreviewTime] = useState(0);
+  const [saved, setSaved] = useState(false);
+  const [saving, startSaving] = useTransition();
   const editorUrl = useMemo(() => {
     const p = new URLSearchParams({ url: sourceUrl, duration: String(durationMs / 1000), title, channel });
+    if (vodId && vodLengthSeconds != null) p.set("vodLength", String(vodLengthSeconds));
     if (trim) {
       const base = transcriptWindow?.startMs ?? 0;
       p.set("start", String(base / 1000 + trim.startMs / 1000));
       p.set("end", String(base / 1000 + trim.endMs / 1000));
     }
     return `/twitch/editor?${p.toString()}`;
-  }, [sourceUrl, durationMs, title, channel, transcriptWindow, trim]);
+  }, [sourceUrl, durationMs, title, channel, transcriptWindow, trim, vodId, vodLengthSeconds]);
 
   function selectWholeVideo() {
     setTrim({
@@ -187,6 +213,25 @@ function TwitchTranscriptMedia({
       wordEnd: Math.max(0, (transcript?.words?.length ?? 0) - 1),
       text: "Vídeo inteiro",
       warnings: [],
+    });
+  }
+
+  function saveVod() {
+    if (!vodId) return;
+    const startSeconds = trim ? trim.startMs / 1000 : 0;
+    const endSeconds = trim ? trim.endMs / 1000 : durationMs / 1000;
+    startSaving(async () => {
+      const result = await saveTwitchVod({
+        vodId,
+        sourceUrl,
+        title,
+        channel,
+        thumbnailUrl,
+        lengthSeconds: durationMs / 1000,
+        startSeconds,
+        endSeconds,
+      });
+      if (result.ok) setSaved(true);
     });
   }
 
@@ -218,6 +263,9 @@ function TwitchTranscriptMedia({
         )}
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={selectWholeVideo}>Clipar vídeo inteiro</Button>
+          {vodId && <Button variant="secondary" onClick={saveVod} disabled={saving || saved}>
+            {saved ? "VOD salvo" : saving ? "Salvando…" : "Salvar na biblioteca"}
+          </Button>}
           {trim && <Button variant="primary" onClick={() => router.push(editorUrl)}>Abrir no editor</Button>}
         </div>
       </div>
@@ -230,6 +278,7 @@ function TwitchTranscriptMedia({
       onTrim={setTrim}
       autoLoad
       aiOnly
+      showHighlights={showHighlights}
       transcriptWindow={transcriptWindow}
       timeOffsetMs={timeOffsetMs}
     />

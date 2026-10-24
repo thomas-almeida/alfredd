@@ -8,8 +8,13 @@ import { getSession } from "@/lib/auth";
 export const metadata = { title: "Baixar da Twitch" };
 export const dynamic = "force-dynamic";
 
-export default async function TwitchPage() {
+export default async function TwitchPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ url?: string }>;
+}) {
   const session = await getSession();
+  const { url } = await searchParams;
 
   return (
     <AppShell crumbs={[{ label: "Baixar da Twitch" }]}>
@@ -18,7 +23,7 @@ export default async function TwitchPage() {
         subtitle="Analise clipes e VODs da Twitch com preview, transcrição e destaques para criar cortes."
       />
       {session ? (
-        <TwitchDownloader />
+        <TwitchDownloader initialUrl={url} />
       ) : (
         <EmptyState
           icon="film"

@@ -14,6 +14,56 @@ export interface SaveResult {
   quotaExceeded?: boolean;
 }
 
+export async function saveTwitchVod(input: {
+  vodId: string;
+  sourceUrl: string;
+  title: string;
+  channel: string | null;
+  thumbnailUrl: string | null;
+  lengthSeconds: number;
+  startSeconds: number;
+  endSeconds: number;
+}): Promise<SaveResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, needsAuth: true, error: "unauthenticated" };
+  const supabase = await createClient();
+  const { error } = await supabase.from("twitch_saved_vods").upsert({
+    user_id: session.userId,
+    vod_id: input.vodId,
+    source_url: input.sourceUrl,
+    title: input.title,
+    channel: input.channel,
+    thumbnail_url: input.thumbnailUrl,
+    length_seconds: input.lengthSeconds,
+    start_seconds: input.startSeconds,
+    end_seconds: input.endSeconds,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: "user_id,vod_id,start_seconds,end_seconds" });
+  if (error) return { ok: false, error: error.message };
+  revalidatePath("/biblioteca");
+  return { ok: true };
+}
+
+export async function removeSavedYoutube(id: string): Promise<{ ok: boolean; error?: string }> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "unauthenticated" };
+  if (!session.isPro) return { ok: false, error: "Remover vídeos salvos é exclusivo do plano PRO." };
+  const supabase = await createClient();
+  const { error } = await supabase.from("youtube_saved_videos").delete().eq("id", id);
+  revalidatePath("/biblioteca");
+  return { ok: !error, error: error?.message };
+}
+
+export async function removeSavedVod(id: string): Promise<{ ok: boolean; error?: string }> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "unauthenticated" };
+  if (!session.isPro) return { ok: false, error: "Remover VODs salvas é exclusivo do plano PRO." };
+  const supabase = await createClient();
+  const { error } = await supabase.from("twitch_saved_vods").delete().eq("id", id);
+  revalidatePath("/biblioteca");
+  return { ok: !error, error: error?.message };
+}
+
 /**
  * Salva um clipe na biblioteca a partir do seu ID da Twitch. O servidor
  * re-busca o clipe (não confia em dados do client), faz upsert de catálogo e

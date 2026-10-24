@@ -189,6 +189,33 @@ type YoutubeSavedVideosRow = {
   updated_at: string;
 };
 
+type VideoHighlightsRow = {
+  id: string;
+  source_key: string;
+  params: string;
+  prompt_version: number;
+  model: string | null;
+  highlights: Json;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
+type TwitchSavedVodsRow = {
+  id: string;
+  user_id: string;
+  vod_id: string;
+  source_url: string;
+  title: string;
+  channel: string | null;
+  thumbnail_url: string | null;
+  length_seconds: number;
+  start_seconds: number;
+  end_seconds: number;
+  created_at: string;
+  updated_at: string;
+};
+
 type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
@@ -215,6 +242,8 @@ export interface Database {
       transcript_lines: Table<TranscriptLinesRow>;
       transcript_usage: Table<TranscriptUsageRow>;
       youtube_saved_videos: Table<YoutubeSavedVideosRow>;
+      video_highlights: Table<VideoHighlightsRow>;
+      twitch_saved_vods: Table<TwitchSavedVodsRow>;
     };
     Views: Record<string, never>;
     Functions: {
