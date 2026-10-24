@@ -287,6 +287,10 @@ export const useEditor = create<EditorStore>((set, get) => {
     },
     setActivePane: (id) => set({ activePaneId: id }),
     setPaneCrop: (id, rect) => {
+      if (!get().composition?.length && (id === "game" || id === "cam")) {
+        get().setCrop(id, rect);
+        return;
+      }
       const panes = get().composition ?? panesForPreset("full");
       if (!panes.some((p) => p.id === id)) return;
       commit({ composition: panes.map((p) => p.id === id ? { ...p, crop: clampRect(rect) } : p) });
