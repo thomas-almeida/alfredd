@@ -1,5 +1,5 @@
 import type { ReactNode, CSSProperties } from "react";
-import { Sidebar, type SidebarCreator } from "./Sidebar";
+import { Sidebar, type SidebarCreator, type SidebarGame } from "./Sidebar";
 import { TopBar, type Crumb } from "./TopBar";
 import { AuthModalProvider } from "@/features/auth/AuthModal";
 import { getSession } from "@/lib/auth";
@@ -31,9 +31,10 @@ export async function AppShell({
 
   let clipCount = 0;
   let favCreators: SidebarCreator[] = [];
+  let favGames: SidebarGame[] = [];
   if (session) {
     const supabase = await createClient();
-    const [lib, favs, ytFavs] = await Promise.all([
+    const [lib, favs, ytFavs, gameFavs] = await Promise.all([
       supabase.from("library_items").select("id", { count: "exact", head: true }),
       supabase
         .from("favorites")
@@ -43,6 +44,11 @@ export async function AppShell({
       supabase
         .from("youtube_favorites")
         .select("id, channel_id, title, thumbnail_url, created_at")
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("favorites")
+        .select("id, created_at, games(twitch_id, name, box_art_url)")
+        .eq("source_type", "game")
         .order("created_at", { ascending: false }),
     ]);
     clipCount = lib.count ?? 0;
@@ -79,6 +85,10 @@ export async function AppShell({
     favCreators = [...twitch, ...youtube]
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
       .map(({ createdAt: _, ...c }) => c);
+    favGames = (gameFavs.data ?? []).flatMap((row) => {
+      const game = row.games as unknown as { twitch_id: string; name: string; box_art_url: string | null } | null;
+      return game ? [{ key: `game:${game.twitch_id}`, favoriteId: row.id, href: `/jogos/${game.twitch_id}`, name: game.name, avatar: game.box_art_url }] : [];
+    });
   }
 
   return (
@@ -87,7 +97,7 @@ export async function AppShell({
         className="grid min-h-screen max-[860px]:[grid-template-columns:1fr!important] max-[860px]:[grid-template-areas:'topbar'_'main']"
         style={authed ? authedGrid : publicGrid}
       >
-        {authed && <Sidebar clipCount={clipCount} creators={favCreators} />}
+        {authed && <Sidebar clipCount={clipCount} creators={favCreators} games={favGames} />}
         <TopBar crumbs={crumbs} email={session?.email ?? null} />
         <main
           className={

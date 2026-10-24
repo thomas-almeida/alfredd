@@ -27,18 +27,29 @@ export interface SidebarCreator {
   platform: "twitch" | "youtube";
 }
 
+export interface SidebarGame {
+  key: string;
+  favoriteId: string;
+  href: string;
+  name: string;
+  avatar: string | null;
+}
+
 export function Sidebar({
   clipCount = 0,
   creators = [],
+  games = [],
 }: {
   clipCount?: number;
   creators?: SidebarCreator[];
+  games?: SidebarGame[];
 }) {
   const pathname = usePathname();
   const selectedChannel = useSearchParams().get("channel");
   const [collapsed, setCollapsed] = useState(false);
   const [streamersHidden, setStreamersHidden] = useState(false);
   const [removedCreators, setRemovedCreators] = useState<Set<string>>(new Set());
+  const [removedGames, setRemovedGames] = useState<Set<string>>(new Set());
   const [confirmCreator, setConfirmCreator] = useState<SidebarCreator | null>(null);
   const [removing, startRemoving] = useTransition();
 
@@ -94,6 +105,14 @@ export function Sidebar({
         setRemovedCreators((current) => new Set(current).add(creator.key));
         setConfirmCreator(null);
       }
+    });
+  }
+
+  function removeGame(game: SidebarGame) {
+    if (!window.confirm(`Remover ${game.name} dos jogos favoritos?`)) return;
+    startRemoving(async () => {
+      const result = await removeFavorite(game.favoriteId);
+      if (result.ok) setRemovedGames((current) => new Set(current).add(game.key));
     });
   }
 
@@ -268,6 +287,28 @@ export function Sidebar({
                 {creators.length ? "Ver todos os favoritos" : "Nenhum criador favoritado"}
               </Link>
             )}
+            {!collapsed && games.length > 0 && (
+              <div className="mt-3 border-t border-border pt-2">
+                <div className="px-2 pt-1 pb-1 text-xs uppercase tracking-wider text-subtle">Jogos favoritos ({games.length})</div>
+                {games.filter((game) => !removedGames.has(game.key)).map((game) => {
+                  const active = isActive(pathname, game.href);
+                  return (
+                    <div key={game.key} className="group relative">
+                      <Link href={game.href} className={cn("flex items-center gap-3 py-1.5 rounded-sm text-[13px] font-medium transition-colors px-2", active ? "bg-surface-hover text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")} aria-current={active ? "page" : undefined}>
+                        {game.avatar ? <img src={game.avatar} alt="" referrerPolicy="no-referrer" className="w-5 h-5 rounded-sm object-cover" /> : <span className="w-5 h-5 rounded-sm bg-surface-2 text-[0.625rem] font-bold flex items-center justify-center">{game.name.charAt(0).toUpperCase()}</span>}
+                        <span className="truncate">{game.name}</span>
+                      </Link>
+                      <button type="button" onClick={() => removeGame(game)} className="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted opacity-0 transition-opacity hover:bg-danger hover:text-white group-hover:opacity-100" aria-label={`Desfavoritar ${game.name}`} title="Desfavoritar">−</button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {collapsed && games.filter((game) => !removedGames.has(game.key)).map((game) => (
+              <Link key={game.key} href={game.href} className={cn("flex items-center justify-center py-1.5 rounded-sm", isActive(pathname, game.href) ? "bg-surface-hover" : "hover:bg-surface-2")} title={game.name}>
+                {game.avatar ? <img src={game.avatar} alt="" referrerPolicy="no-referrer" className="w-5 h-5 rounded-sm object-cover" /> : <span className="w-5 h-5 rounded-sm bg-surface-2 text-[0.625rem] font-bold flex items-center justify-center">{game.name.charAt(0).toUpperCase()}</span>}
+              </Link>
+            ))}
           </div>
             )}
           </div>

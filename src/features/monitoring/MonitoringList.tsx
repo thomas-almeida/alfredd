@@ -4,7 +4,7 @@ import { useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { createMonitoring, disableMonitoring } from "./actions";
 
-type Target = { id: string; label: string; sourceType: "game" | "streamer"; monitored: boolean; monitoringId?: string };
+type Target = { id: string; label: string; avatar: string | null; sourceType: "game" | "streamer"; monitored: boolean; monitoringId?: string };
 
 export function MonitoringList({ targets }: { targets: Target[] }) {
   const [pending, startTransition] = useTransition();
@@ -12,7 +12,10 @@ export function MonitoringList({ targets }: { targets: Target[] }) {
     <div className="flex flex-col gap-3">
       {targets.map((target) => (
         <div key={`${target.sourceType}:${target.id}`} className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface p-4">
-          <div><p className="font-medium">{target.label}</p><p className="text-xs text-muted">{target.sourceType === "game" ? "Jogo" : "Criador Twitch"}</p></div>
+          <div className="flex min-w-0 items-center gap-3">
+            {target.avatar ? <img src={target.avatar} alt="" referrerPolicy="no-referrer" className={`h-10 w-10 object-cover ${target.sourceType === "game" ? "rounded-sm" : "rounded-full"}`} /> : <span className="flex h-10 w-10 items-center justify-center rounded-full bg-surface-2 font-bold">{target.label.charAt(0).toUpperCase()}</span>}
+            <div><p className="font-medium truncate">{target.label}</p><p className="text-xs text-muted">{target.sourceType === "game" ? "Jogo" : "Criador Twitch"}</p></div>
+          </div>
           {target.monitored ? (
             <Button size="sm" variant="ghost" disabled={pending} onClick={() => startTransition(() => void disableMonitoring(target.monitoringId!))}>Desativar</Button>
           ) : (

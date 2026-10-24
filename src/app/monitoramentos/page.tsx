@@ -13,15 +13,16 @@ export default async function MonitoramentosPage() {
   const db = await createClient();
   const typedDb = db as any;
   const [{ data: favorites }, { data: active }] = await Promise.all([
-    typedDb.from("favorites").select("id,source_type,game_id,streamer_id,games(id,name),streamers(id,display_name)").eq("user_id", session?.userId ?? "").order("created_at", { ascending: false }),
+    typedDb.from("favorites").select("id,source_type,game_id,streamer_id,games(id,name,box_art_url),streamers(id,display_name,thumbnail_url)").eq("user_id", session?.userId ?? "").order("created_at", { ascending: false }),
     typedDb.from("monitorings").select("id,source_type,game_id,streamer_id").eq("user_id", session?.userId ?? "").eq("active", true),
   ]);
   const activeRows = active ?? [];
   const targets = (favorites ?? []).map((favorite: any) => {
     const id = favorite.source_type === "game" ? favorite.game_id : favorite.streamer_id;
     const label = favorite.source_type === "game" ? favorite.games?.name : favorite.streamers?.display_name;
+    const avatar = favorite.source_type === "game" ? favorite.games?.box_art_url : favorite.streamers?.thumbnail_url;
     const monitoring = activeRows.find((row: any) => row.source_type === favorite.source_type && (favorite.source_type === "game" ? row.game_id === id : row.streamer_id === id));
-    return { id, label: label ?? "Fonte sem nome", sourceType: favorite.source_type, monitored: Boolean(monitoring), monitoringId: monitoring?.id };
+    return { id, label: label ?? "Fonte sem nome", avatar: avatar ?? null, sourceType: favorite.source_type, monitored: Boolean(monitoring), monitoringId: monitoring?.id };
   });
   return (
     <AppShell crumbs={[{ label: "Monitoramentos" }]}>
