@@ -20,6 +20,14 @@ export async function telegramMe() {
   return call<{ id: number; is_bot: boolean; first_name: string; username?: string }>("getMe", {});
 }
 
+export async function setTelegramWebhook(url: string, secretToken?: string) {
+  return call<boolean>("setWebhook", {
+    url,
+    ...(secretToken ? { secret_token: secretToken } : {}),
+    allowed_updates: ["message"],
+  });
+}
+
 export async function sendTelegramAlert(params: {
   chatId: string;
   title: string;
