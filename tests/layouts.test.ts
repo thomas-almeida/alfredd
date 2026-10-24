@@ -29,7 +29,27 @@ import {
   fitKeyframes,
   keyframeIndexAt,
   type Keyframe,
+  panesForPreset,
+  compositionAt,
 } from "../src/lib/export/layouts.ts";
+
+test("presets de composição dividem o mesmo frame em focos independentes", () => {
+  const vertical = panesForPreset("split_vertical", 1920, 1080);
+  assert.equal(vertical.length, 2);
+  assert.deepEqual(vertical.map((p) => p.destination), [
+    { x: 0, y: 0, w: 0.5, h: 1 },
+    { x: 0.5, y: 0, w: 0.5, h: 1 },
+  ]);
+  const grid = panesForPreset("grid_2x2");
+  assert.equal(grid.length, 4);
+  assert.ok(grid.every((p) => p.crop.w > 0 && p.crop.h > 0));
+});
+
+test("compositionAt prioriza composição salva e mantém todos os focos", () => {
+  const composition = panesForPreset("split_horizontal");
+  const state = { ...defaultState(60), composition };
+  assert.deepEqual(compositionAt(state, 10), composition);
+});
 
 const near = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-6, `${a} ≈ ${b}`);
 

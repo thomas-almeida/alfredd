@@ -22,6 +22,9 @@ import {
   type NRect,
   type Trim,
   type VideoTrack,
+  panesForPreset,
+  type FocusPane,
+  type FocusPreset,
 } from "@/lib/export/layouts";
 import { MOTION_PRESETS, applyMotionPreset, peakKeyframes, type MotionPreset } from "@/lib/editor/motion";
 
@@ -84,6 +87,11 @@ interface EditorStore extends EditorState {
   undo: () => void;
   redo: () => void;
   snapshot: () => EditorState;
+  composition?: FocusPane[];
+  activePaneId: string;
+  setComposition: (preset: FocusPreset, srcW?: number, srcH?: number) => void;
+  setActivePane: (id: string) => void;
+  setPaneCrop: (id: string, rect: NRect) => void;
 }
 
 let lastCommit = 0;
@@ -127,6 +135,8 @@ export const useEditor = create<EditorStore>((set, get) => {
     tracks: [],
     keyframes: [],
     activeTrack: 0,
+    composition: undefined,
+    activePaneId: "pane-1",
     duration: 0,
     currentTime: 0,
     playing: false,
@@ -148,6 +158,8 @@ export const useEditor = create<EditorStore>((set, get) => {
         audio: saved?.audio ? normalizeAudio(saved.audio, duration) : null,
         crops: fitCrops({ ...base.crops, ...saved?.crops }, layout),
         keyframes: fitKeyframes(saved?.keyframes, layout),
+        composition: saved?.composition?.length ? saved.composition : undefined,
+        activePaneId: saved?.composition?.[0]?.id ?? "pane-1",
         tracks: savedTracks.map((tr) => ({
           ...tr,
           id: tr.id || `t${++trackSeq}`,
@@ -265,6 +277,17 @@ export const useEditor = create<EditorStore>((set, get) => {
     setLayout: (layout) =>
       patchFraming((f) => ({ layout, crops: fitCrops(f.crops, layout), keyframes: fitKeyframes(f.keyframes, layout) })),
     setCamPos: (camPos) => patchFraming(() => ({ camPos })),
+    setComposition: (preset, srcW = 1920, srcH = 1080) => {
+      lastCommit = 0;
+      commit({ composition: preset === "full" ? undefined : panesForPreset(preset, srcW, srcH), layout: "full", tracks: [] });
+      set({ activeTrack: 0, activePaneId: "pane-1" });
+    },
+    setActivePane: (id) => set({ activePaneId: id }),
+    setPaneCrop: (id, rect) => {
+      const panes = get().composition ?? panesForPreset("full");
+      if (!panes.some((p) => p.id === id)) return;
+      commit({ composition: panes.map((p) => p.id === id ? { ...p, crop: clampRect(rect) } : p) });
+    },
     setCrop: (key, rect) =>
       patchFraming((f) => {
         if (!f.keyframes?.length) return { crops: { ...f.crops, [key]: clampRect(rect) } };
@@ -327,8 +350,9 @@ export const useEditor = create<EditorStore>((set, get) => {
         crops: fitCrops(base.crops, "full"),
         keyframes: [],
         tracks: [],
+        composition: undefined,
       });
-      set({ activeTrack: 0, currentTime: segments[0]!.start });
+      set({ activeTrack: 0, activePaneId: "pane-1", currentTime: segments[0]!.start });
     },
     setTime: (currentTime) => set({ currentTime }),
     setPlaying: (playing) => set({ playing }),
@@ -347,8 +371,8 @@ export const useEditor = create<EditorStore>((set, get) => {
       set({ ...next, past: [...past, snapshot()], future: future.slice(1) });
     },
     snapshot: () => {
-      const { segments, layout, camPos, crops, audio, tracks, keyframes } = get();
-      return { segments, layout, camPos, crops, keyframes: keyframes ?? [], audio: audio ?? null, tracks: tracks ?? [] };
+      const { segments, layout, camPos, crops, audio, tracks, keyframes, composition } = get();
+      return { segments, layout, camPos, crops, keyframes: keyframes ?? [], audio: audio ?? null, tracks: tracks ?? [], composition: composition ?? [] };
     },
   };
 });

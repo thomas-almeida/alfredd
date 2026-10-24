@@ -17,8 +17,7 @@ import {
   cropToPixels,
   intersectSegments,
   segmentsTotal,
-  slotsFor,
-  framingAt,
+  compositionAt,
   outputSegments,
   type EditorState,
 } from "./layouts";
@@ -92,11 +91,11 @@ async function run({ sourceUrl, state, captions = [] }: ExportRequest) {
         last = t;
         g.fillStyle = "#000";
         g.fillRect(0, 0, OUT_W, OUT_H);
-        // Enquadramento da faixa mais alta que cobre este instante.
-        const f = framingAt(state, frame.timestamp);
-        for (const s of slotsFor(f.layout, f.camPos)) {
-          const c = cropToPixels(f.crops[s.key], srcW, srcH);
-          g.drawImage(frame.canvas, c.sx, c.sy, c.sw, c.sh, s.dx, s.dy, s.dw, s.dh);
+        // Todos os focos podem usar o mesmo frame com crops diferentes.
+        for (const pane of compositionAt(state, frame.timestamp).sort((a, b) => a.zIndex - b.zIndex)) {
+          const c = cropToPixels(pane.crop, srcW, srcH);
+          const d = pane.destination;
+          g.drawImage(frame.canvas, c.sx, c.sy, c.sw, c.sh, d.x * OUT_W, d.y * OUT_H, d.w * OUT_W, d.h * OUT_H);
         }
         const cue = captions.find((x) => frame.timestamp * 1000 >= x.startMs && frame.timestamp * 1000 < x.endMs);
         if (cue) drawCaption(g, cue.text);

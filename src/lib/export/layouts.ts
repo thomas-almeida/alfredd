@@ -5,6 +5,7 @@ export const OUT_H = 1920;
 export const MAX_CLIP_SECONDS = 90;
 /** Altura da faixa da cam no layout cam_game. */
 export const CAM_H = 640;
+export type FocusPreset = "full" | "split_vertical" | "split_horizontal" | "grid_2x2";
 
 /** `cam` = só a cam, centralizada (trechos de cam sem vídeo principal). */
 export type Layout = "full" | "cam_game" | "cam";
@@ -17,6 +18,15 @@ export interface NRect {
   y: number;
   w: number;
   h: number;
+}
+
+/** Um foco independente sobre a mesma fonte de vídeo. */
+export interface FocusPane {
+  id: string;
+  crop: NRect;
+  /** Retângulo normalizado no canvas final 1080×1920. */
+  destination: NRect;
+  zIndex: number;
 }
 
 export interface Trim {
@@ -43,6 +53,8 @@ export interface EditorState {
   tracks?: VideoTrack[];
   /** Keyframes de crop do vídeo principal (ver `Framing.keyframes`). */
   keyframes?: Keyframe[];
+  /** Composição simultânea de focos; ausente em projetos antigos. */
+  composition?: FocusPane[];
 }
 
 /** Crops fixados num instante `t` (tempo da fonte). */
@@ -93,6 +105,30 @@ export function slotsFor(layout: Layout, camPos: CamPos = "top"): Slot[] {
         { key: "game", dx: 0, dy: 0, dw: OUT_W, dh: gameH },
         { key: "cam", dx: 0, dy: gameH, dw: OUT_W, dh: CAM_H },
       ];
+}
+
+function focusPane(id: string, crop: NRect, destination: NRect, zIndex = 0): FocusPane {
+  return { id, crop, destination, zIndex };
+}
+
+/** Presets iniciais para dividir o mesmo vídeo em vários enquadramentos. */
+export function panesForPreset(preset: FocusPreset, srcW = 1920, srcH = 1080): FocusPane[] {
+  const cells = preset === "split_vertical"
+    ? [{ x: 0, y: 0, w: 0.5, h: 1 }, { x: 0.5, y: 0, w: 0.5, h: 1 }]
+    : preset === "split_horizontal"
+      ? [{ x: 0, y: 0, w: 1, h: 0.5 }, { x: 0, y: 0.5, w: 1, h: 0.5 }]
+      : preset === "grid_2x2"
+        ? [
+            { x: 0, y: 0, w: 0.5, h: 0.5 }, { x: 0.5, y: 0, w: 0.5, h: 0.5 },
+            { x: 0, y: 0.5, w: 0.5, h: 0.5 }, { x: 0.5, y: 0.5, w: 0.5, h: 0.5 },
+          ]
+        : [{ x: 0, y: 0, w: 1, h: 1 }];
+  return cells.map((destination, i) => focusPane(
+    `pane-${i + 1}`,
+    centeredCrop(srcW, srcH, destination.w * OUT_W, destination.h * OUT_H),
+    destination,
+    i,
+  ));
 }
 
 const clamp = (v: number, lo: number, hi: number) =>
@@ -389,6 +425,18 @@ export function framingAt(state: EditorState, t: number): Framing {
     return crops === tr.crops ? tr : { ...tr, crops };
   }
   return { layout: "full", camPos: state.camPos, crops: cropsAt(state, t) };
+}
+
+/** Composição usada simultaneamente pelo preview e pelo export. */
+export function compositionAt(state: EditorState, t: number): FocusPane[] {
+  if (state.composition?.length) return state.composition;
+  const f = framingAt(state, t);
+  return slotsFor(f.layout, f.camPos).map((slot) => ({
+    id: slot.key,
+    crop: f.crops[slot.key],
+    destination: { x: slot.dx / OUT_W, y: slot.dy / OUT_H, w: slot.dw / OUT_W, h: slot.dh / OUT_H },
+    zIndex: slot.key === "game" ? 0 : 1,
+  }));
 }
 
 /** Trechos que entram na saída: união do vídeo principal com as faixas de cam. */

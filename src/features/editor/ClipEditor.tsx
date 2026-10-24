@@ -20,6 +20,7 @@ import {
   outputSegments,
   segmentIndexAt,
   slotsFor,
+  compositionAt,
   framingAt,
   type EditorState,
   type Framing,
@@ -264,7 +265,6 @@ function EditorBody({
   saving: "idle" | "saving" | "saved";
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [active, setActive] = useState<SlotKey>("game");
   const [loop, setLoop] = useState(true);
   const [selected, setSelected] = useState<Selection>(null);
   const [volume, setVolume] = useState(1);
@@ -274,7 +274,6 @@ function EditorBody({
   mutedRef.current = muted;
   const [src, setSrc] = useState({ w: 1920, h: 1080 });
   const [videoState, setVideoState] = useState<VideoState>("loading");
-  const layout = useFraming("layout");
   const playing = useEditor((s) => s.playing);
   const router = useRouter();
   const [nextPending, startNext] = useTransition();
@@ -295,8 +294,6 @@ function EditorBody({
     v.volume = volume;
     v.playbackRate = rate;
   }, [volume, rate, ingest]);
-
-  const activeKey: SlotKey = layout === "full" ? "game" : active;
 
   // Mantém currentTime/playing no store e respeita o trim (loop opcional).
   useEffect(() => {
@@ -514,7 +511,7 @@ function EditorBody({
               onWaiting={() => setVideoState((s) => (s === "ready" ? "buffering" : s))}
               onError={() => setVideoState("error")}
             />
-          <CropOverlay activeKey={activeKey} srcW={src.w} srcH={src.h} />
+          <FocusOverlay srcW={src.w} srcH={src.h} />
           <VideoLoadingOverlay state={videoState} progressUrl={ingest.progressUrl} durationMs={ingest.duration * 1000} />
           </div>
           <Timeline
@@ -573,7 +570,7 @@ function EditorBody({
 
         <div className="flex flex-col gap-4 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto max-[1200px]:col-span-2 max-[700px]:col-span-1 max-[700px]:static max-[700px]:max-h-none">
           <VerticalPreview videoRef={videoRef} srcW={src.w} srcH={src.h} transcript={editorTranscript} captionsEnabled={captionsEnabled} />
-          <LayoutPicker active={activeKey} onActive={setActive} />
+          <FocusLayoutPicker srcW={src.w} srcH={src.h} />
           <KeyframeControls />
           <MotionControls videoRef={videoRef} sourceUrl={ingest.sourceUrl} srcW={src.w} srcH={src.h} />
           <ExportPanel
@@ -589,6 +586,68 @@ function EditorBody({
           <LeaveGuard active={!exported} />
         </div>
       </div>
+    </div>
+  );
+}
+
+function FocusOverlay({ srcW, srcH }: { srcW: number; srcH: number }) {
+  const state = useEditor();
+  const panes = state.composition ?? compositionAt(state, state.currentTime);
+  const { activePaneId, setActivePane, setPaneCrop } = state;
+  const boxRef = useRef<HTMLDivElement>(null);
+
+  function drag(e: React.PointerEvent, paneId: string, mode: "move" | "resize") {
+    e.preventDefault();
+    e.stopPropagation();
+    const box = boxRef.current?.getBoundingClientRect();
+    const pane = panes.find((item) => item.id === paneId);
+    if (!box || !pane) return;
+    setActivePane(paneId);
+    const start = { x: e.clientX, y: e.clientY, r: pane.crop };
+    const onMove = (ev: PointerEvent) => {
+      const dx = (ev.clientX - start.x) / box.width;
+      const dy = (ev.clientY - start.y) / box.height;
+      if (mode === "move") {
+        setPaneCrop(paneId, { ...start.r, x: start.r.x + dx, y: start.r.y + dy });
+      } else {
+        const r: NRect = { ...start.r, w: Math.max(0.05, start.r.w + dx) };
+        setPaneCrop(paneId, lockAspect(r, srcW, srcH, pane.destination.w * OUT_W, pane.destination.h * OUT_H));
+      }
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  function recenter(pane: (typeof panes)[number]) {
+    const r = pane.crop;
+    const fit = centeredCrop(srcW, srcH, pane.destination.w * OUT_W, pane.destination.h * OUT_H);
+    const w = Math.min(r.w, fit.w);
+    const sized = lockAspect({ x: 0, y: 0, w, h: r.h }, srcW, srcH, pane.destination.w * OUT_W, pane.destination.h * OUT_H);
+    setPaneCrop(pane.id, { ...sized, x: (1 - sized.w) / 2, y: (1 - sized.h) / 2 });
+  }
+
+  return (
+    <div ref={boxRef} className="absolute inset-0 pointer-events-none">
+      {panes.map((pane, index) => {
+        const r = pane.crop;
+        const isActive = pane.id === activePaneId;
+        return (
+          <div
+            key={pane.id}
+            className={`absolute border-2 pointer-events-auto cursor-move ${isActive ? "border-accent" : "border-white/40"}`}
+            style={{ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%`, boxShadow: isActive ? "0 0 0 9999px rgba(0,0,0,0.45)" : undefined, zIndex: isActive ? 2 : 1 }}
+            onPointerDown={(e) => drag(e, pane.id, "move")}
+            onDoubleClick={() => recenter(pane)}
+          >
+            <span className="absolute left-1 top-1 text-[11px] bg-black/60 text-white px-1 rounded-sm">{`Foco ${index + 1}`}</span>
+            <div className="absolute -right-1.5 -bottom-1.5 w-3 h-3 bg-accent rounded-sm cursor-nwse-resize" onPointerDown={(e) => drag(e, pane.id, "resize")} />
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -705,17 +764,17 @@ function VerticalPreview({
     const c = canvasRef.current;
     const g = c?.getContext("2d");
     if (!c || !g) return;
-    const k = PW / OUT_W;
     let raf = 0;
     const draw = () => {
       const v = videoRef.current;
-      const { layout, camPos, crops } = framingAt(useEditor.getState(), v?.currentTime ?? 0);
+      const state = useEditor.getState();
       g.fillStyle = "#000";
       g.fillRect(0, 0, PW, PH);
       if (v && v.readyState >= 2) {
-        for (const s of slotsFor(layout, camPos)) {
-          const p = cropToPixels(crops[s.key], v.videoWidth || srcW, v.videoHeight || srcH);
-          g.drawImage(v, p.sx, p.sy, p.sw, p.sh, s.dx * k, s.dy * k, s.dw * k, s.dh * k);
+        for (const pane of compositionAt(state, v?.currentTime ?? 0).sort((a, b) => a.zIndex - b.zIndex)) {
+          const p = cropToPixels(pane.crop, v.videoWidth || srcW, v.videoHeight || srcH);
+          const d = pane.destination;
+          g.drawImage(v, p.sx, p.sy, p.sw, p.sh, d.x * PW, d.y * PH, d.w * PW, d.h * PH);
         }
 
         if (captionsEnabled && transcript) {
@@ -917,6 +976,34 @@ function MotionControls({
         </Button>
       </div>
       {msg && <span className="text-[12px] text-muted">{msg}</span>}
+    </div>
+  );
+}
+
+function FocusLayoutPicker({ srcW, srcH }: { srcW: number; srcH: number }) {
+  const panes = useEditor((s) => s.composition);
+  const setComposition = useEditor((s) => s.setComposition);
+  const count = panes?.length ?? 1;
+  const current = count === 4 ? "grid_2x2" : count === 2
+    ? (panes?.[0]?.destination.w === 0.5 ? "split_vertical" : "split_horizontal")
+    : "full";
+  const options = [
+    ["full", "Tela cheia"],
+    ["split_vertical", "2 colunas"],
+    ["split_horizontal", "2 linhas"],
+    ["grid_2x2", "Grade 4"],
+  ] as const;
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-[13px] text-muted">Composição de focos</span>
+      <span className="text-[12px] text-muted">Escolha um formato e arraste cada foco no vídeo para enquadrar os apresentadores.</span>
+      <div className="flex flex-wrap gap-2">
+        {options.map(([preset, label]) => (
+          <Button key={preset} size="sm" variant={current === preset ? "primary" : "secondary"} onClick={() => setComposition(preset, srcW, srcH)}>
+            {label}
+          </Button>
+        ))}
+      </div>
     </div>
   );
 }
