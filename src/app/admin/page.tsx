@@ -13,6 +13,8 @@ const labels: Record<string, string> = {
   telegram: "Telegram Bot",
   resend: "Resend (e-mail)",
   abacatepay: "AbacatePay (pagamentos)",
+  transcription: "Transcrição (Whisper)",
+  llm: "IA de destaques (LLM)",
 };
 
 export default function AdminPage() {

@@ -24,6 +24,30 @@ const serverSchema = z.object({
   RESEND_API_KEY: z.string().min(1).optional(),
   ABACATEPAY_DEV_KEY: z.string().min(1).optional(),
   ABACATEPAY_WEBHOOK: z.string().min(1).optional(),
+  // Engajamento do YouTube (Data API v3).
+  YOUTUBE_API_KEY: z.string().min(1).optional(),
+  // Download de clip/VOD da Twitch (GQL público + ffmpeg).
+  TWITCH_WEB_CLIENT_ID: z.string().min(1).optional(),
+  FFMPEG_PATH: z.string().min(1).optional(),
+  MAX_VOD_WINDOW_SECONDS: z.string().optional(),
+  // Transcrição (Whisper via Groq/OpenAI) e IA de destaques.
+  GROQ_API_KEY: z.string().min(1).optional(),
+  GEMINI_API_KEY: z.string().min(1).optional(),
+  GEMINI_MODEL: z.string().min(1).optional(),
+  TRANSCRIBE_PROVIDER: z.enum(["groq", "openai"]).optional(),
+  TRANSCRIBE_API_KEY: z.string().min(1).optional(),
+  TRANSCRIBE_BASE_URL: z.string().min(1).optional(),
+  TRANSCRIBE_MODEL: z.string().min(1).optional(),
+  OPENAI_API_KEY: z.string().min(1).optional(),
+  LLM_BASE_URL: z.string().min(1).optional(),
+  LLM_API_KEY: z.string().min(1).optional(),
+  OPENROUTER_API_KEY: z.string().min(1).optional(),
+  LLM_MODEL: z.string().min(1).optional(),
+  FFPROBE_PATH: z.string().min(1).optional(),
+  YTDLP_PATH: z.string().min(1).optional(),
+  PYTHON_PATH: z.string().min(1).optional(),
+  YT_INNERTUBE_CLIENT: z.string().min(1).optional(),
+  YT_INNERTUBE_CLIENT_VERSION: z.string().min(1).optional(),
 });
 
 function formatIssues(issues: z.ZodIssue[]): string {
@@ -73,5 +97,10 @@ export function integrationStatus() {
     telegram: Boolean(e.TELEGRAM_BOT_TOKEN),
     resend: Boolean(e.RESEND_API_KEY),
     abacatepay: Boolean(e.ABACATEPAY_DEV_KEY),
+    youtube: Boolean(e.YOUTUBE_API_KEY),
+    transcription: Boolean(
+      e.TRANSCRIBE_API_KEY || e.GROQ_API_KEY || e.OPENAI_API_KEY,
+    ),
+    llm: Boolean(e.GEMINI_API_KEY || e.LLM_API_KEY || e.OPENROUTER_API_KEY || e.OPENAI_API_KEY),
   } as const;
 }
