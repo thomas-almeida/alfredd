@@ -16,7 +16,8 @@ const STREAMERS = [
   { login: "coreano", tag: "Free Fire · IRL", color: "#b4f34a" },
   { login: "yoda", tag: "Free Fire · IRL", color: "#b4f34a" },
   { login: "brino", tag: "Free Fire · IRL", color: "#b4f34a" },
-  { login: "gaules", tag: "Free Fire · IRL", color: "#b4f34a" }
+  { login: "gaules", tag: "Free Fire · IRL", color: "#b4f34a" },
+  { login: "obalestrin", tag: "Free Fire · IRL", color: "#b4f34a" },
 ];
 
 type Streamer = { id: string; login: string; name: string; avatar: string };
