@@ -1,26 +1,23 @@
 import "server-only";
 import { getServerEnv } from "@/lib/env";
 
-/**
- * Interface de e-mail transacional via Resend (guia §8). Templates responsivos,
- * origem configurável e preferências de descadastro. Implementação na Fase 3.
- */
 export interface EmailGateway {
-  send(params: {
-    to: string;
-    subject: string;
-    html: string;
-  }): Promise<void>;
+  send(params: { to: string; subject: string; html: string }): Promise<void>;
 }
 
+/** Gateway HTTP mínimo para manter os templates HTML sob controle do app. */
 export function getEmailGateway(): EmailGateway {
-  const { RESEND_API_KEY } = getServerEnv();
+  const { RESEND_API_KEY, RESEND_FROM_EMAIL } = getServerEnv();
   return {
-    async send() {
-      if (!RESEND_API_KEY) {
-        throw new Error("RESEND_API_KEY ausente: e-mail indisponível.");
-      }
-      throw new Error("Resend.send não implementado (Fase 3).");
+    async send(params) {
+      if (!RESEND_API_KEY) throw new Error("RESEND_API_KEY ausente: e-mail indisponível.");
+      if (!RESEND_FROM_EMAIL) throw new Error("RESEND_FROM_EMAIL ausente: configure um remetente verificado.");
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ from: RESEND_FROM_EMAIL, to: [params.to], subject: params.subject, html: params.html }),
+      });
+      if (!response.ok) throw new Error(`Resend falhou: ${response.status} ${await response.text()}`);
     },
   };
 }

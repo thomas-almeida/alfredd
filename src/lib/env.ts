@@ -22,6 +22,8 @@ const serverSchema = z.object({
   TWITCH_CLIENT_SECRET: z.string().min(1).optional(),
   TELEGRAM_BOT_TOKEN: z.string().min(1).optional(),
   RESEND_API_KEY: z.string().min(1).optional(),
+  RESEND_FROM_EMAIL: z.string().email().optional(),
+  CRON_SECRET: z.string().min(1).optional(),
   ABACATEPAY_DEV_KEY: z.string().min(1).optional(),
   ABACATEPAY_WEBHOOK: z.string().min(1).optional(),
   // Engajamento do YouTube (Data API v3).
