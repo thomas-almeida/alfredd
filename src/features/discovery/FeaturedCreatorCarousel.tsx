@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 export type FeaturedCarouselCreator = {
   key: string;
@@ -12,8 +12,7 @@ export type FeaturedCarouselCreator = {
 };
 
 const STEP_PX = 208;
-const TRANSITION_MS = 520;
-const STEP_INTERVAL_MS = 2_800;
+const SPEED_PX_PER_MS = STEP_PX / 2_800;
 
 function CreatorCard({ creator }: { creator: FeaturedCarouselCreator }) {
   return (
@@ -48,30 +47,39 @@ function CarouselRow({ creators, direction }: { creators: FeaturedCarouselCreato
     [creators, direction],
   );
   const [items, setItems] = useState(initial);
-  const [offset, setOffset] = useState(direction === "right" && creators.length > 1 ? -STEP_PX : 0);
-  const [transition, setTransition] = useState(false);
+  const initialOffset = direction === "right" && creators.length > 1 ? -STEP_PX : 0;
+  const [offset, setOffset] = useState(initialOffset);
+  const offsetRef = useRef(initialOffset);
   const [paused, setPaused] = useState(false);
 
   useEffect(() => {
     setItems(initial);
-    setTransition(false);
-    setOffset(direction === "right" && creators.length > 1 ? -STEP_PX : 0);
+    const nextOffset = direction === "right" && creators.length > 1 ? -STEP_PX : 0;
+    offsetRef.current = nextOffset;
+    setOffset(nextOffset);
   }, [initial, direction, creators.length]);
 
   useEffect(() => {
     if (paused || items.length < 2) return;
-    const timer = window.setInterval(() => {
-      setTransition(true);
-      setOffset(direction === "left" ? -STEP_PX : 0);
-      window.setTimeout(() => {
-        setTransition(false);
-        setItems((current) => direction === "left"
-          ? [...current.slice(1), current[0]!]
-          : [current.at(-1)!, ...current.slice(0, -1)]);
-        setOffset(direction === "left" ? 0 : -STEP_PX);
-      }, TRANSITION_MS);
-    }, STEP_INTERVAL_MS);
-    return () => window.clearInterval(timer);
+    let frame = 0;
+    let previous = performance.now();
+    const tick = (now: number) => {
+      const elapsed = Math.min(now - previous, 50);
+      previous = now;
+      let next = offsetRef.current + (direction === "left" ? -1 : 1) * SPEED_PX_PER_MS * elapsed;
+      if (direction === "left" && next <= -STEP_PX) {
+        next += STEP_PX;
+        setItems((current) => [...current.slice(1), current[0]!]);
+      } else if (direction === "right" && next >= 0) {
+        next -= STEP_PX;
+        setItems((current) => [current.at(-1)!, ...current.slice(0, -1)]);
+      }
+      offsetRef.current = next;
+      setOffset(next);
+      frame = requestAnimationFrame(tick);
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
   }, [direction, items.length, paused]);
 
   if (items.length === 0) return null;
@@ -83,7 +91,7 @@ function CarouselRow({ creators, direction }: { creators: FeaturedCarouselCreato
     >
       <div
         className="flex w-max gap-4 px-4"
-        style={{ transform: `translateX(${offset}px)`, transition: transition ? `transform ${TRANSITION_MS}ms linear` : "none" }}
+        style={{ transform: `translateX(${offset}px)` }}
       >
         {items.map((creator) => <CreatorCard key={creator.key} creator={creator} />)}
       </div>
