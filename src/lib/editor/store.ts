@@ -20,6 +20,7 @@ import {
   type Framing,
   type Layout,
   type NRect,
+  type CaptionPosition,
   type Trim,
   type VideoTrack,
   panesForPreset,
@@ -92,6 +93,7 @@ interface EditorStore extends EditorState {
   setComposition: (preset: FocusPreset, srcW?: number, srcH?: number) => void;
   setActivePane: (id: string) => void;
   setPaneCrop: (id: string, rect: NRect) => void;
+  setCaptionPosition: (position: CaptionPosition) => void;
 }
 
 let lastCommit = 0;
@@ -159,6 +161,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         crops: fitCrops({ ...base.crops, ...saved?.crops }, layout),
         keyframes: fitKeyframes(saved?.keyframes, layout),
         composition: saved?.composition?.length ? saved.composition : undefined,
+        captionPosition: saved?.captionPosition ?? base.captionPosition,
         activePaneId: saved?.composition?.[0]?.id ?? "pane-1",
         tracks: savedTracks.map((tr) => ({
           ...tr,
@@ -288,6 +291,10 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (!panes.some((p) => p.id === id)) return;
       commit({ composition: panes.map((p) => p.id === id ? { ...p, crop: clampRect(rect) } : p) });
     },
+    setCaptionPosition: (position) => commit({ captionPosition: {
+      x: Math.min(1, Math.max(0, position.x)),
+      y: Math.min(1, Math.max(0, position.y)),
+    } }),
     setCrop: (key, rect) =>
       patchFraming((f) => {
         if (!f.keyframes?.length) return { crops: { ...f.crops, [key]: clampRect(rect) } };
@@ -351,6 +358,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         keyframes: [],
         tracks: [],
         composition: undefined,
+        captionPosition: base.captionPosition,
       });
       set({ activeTrack: 0, activePaneId: "pane-1", currentTime: segments[0]!.start });
     },
@@ -371,8 +379,8 @@ export const useEditor = create<EditorStore>((set, get) => {
       set({ ...next, past: [...past, snapshot()], future: future.slice(1) });
     },
     snapshot: () => {
-      const { segments, layout, camPos, crops, audio, tracks, keyframes, composition } = get();
-      return { segments, layout, camPos, crops, keyframes: keyframes ?? [], audio: audio ?? null, tracks: tracks ?? [], composition: composition ?? [] };
+      const { segments, layout, camPos, crops, audio, tracks, keyframes, composition, captionPosition } = get();
+      return { segments, layout, camPos, crops, keyframes: keyframes ?? [], audio: audio ?? null, tracks: tracks ?? [], composition: composition ?? [], captionPosition: captionPosition ?? { x: 0.5, y: 0.88 } };
     },
   };
 });

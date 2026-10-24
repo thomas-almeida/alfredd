@@ -20,6 +20,12 @@ export interface NRect {
   h: number;
 }
 
+export interface CaptionPosition {
+  /** Posição normalizada do centro da legenda no canvas final. */
+  x: number;
+  y: number;
+}
+
 /** Um foco independente sobre a mesma fonte de vídeo. */
 export interface FocusPane {
   id: string;
@@ -55,6 +61,8 @@ export interface EditorState {
   keyframes?: Keyframe[];
   /** Composição simultânea de focos; ausente em projetos antigos. */
   composition?: FocusPane[];
+  /** Posição normalizada do centro das legendas no canvas final. */
+  captionPosition?: CaptionPosition;
 }
 
 /** Crops fixados num instante `t` (tempo da fonte). */
@@ -280,6 +288,7 @@ export function defaultState(
       game: centeredCrop(srcW, srcH, OUT_W, OUT_H),
       cam: { x: 0, y: 0, w: 0.3, h: (0.3 * srcW * CAM_H) / OUT_W / srcH },
     },
+    captionPosition: { x: 0.5, y: 0.88 },
   };
 }
 

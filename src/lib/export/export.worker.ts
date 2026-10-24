@@ -98,7 +98,7 @@ async function run({ sourceUrl, state, captions = [] }: ExportRequest) {
           g.drawImage(frame.canvas, c.sx, c.sy, c.sw, c.sh, d.x * OUT_W, d.y * OUT_H, d.w * OUT_W, d.h * OUT_H);
         }
         const cue = captions.find((x) => frame.timestamp * 1000 >= x.startMs && frame.timestamp * 1000 < x.endMs);
-        if (cue) drawCaption(g, cue.text);
+        if (cue) drawCaption(g, cue.text, state.captionPosition);
         await videoSource.add(t, 1 / fps);
         post({ type: "progress", value: Math.min(0.99, t / length) });
       }
@@ -136,7 +136,7 @@ async function run({ sourceUrl, state, captions = [] }: ExportRequest) {
   post({ type: "done", buffer, duration: length }, [buffer]);
 }
 
-function drawCaption(g: OffscreenCanvasRenderingContext2D, text: string) {
+function drawCaption(g: OffscreenCanvasRenderingContext2D, text: string, position = { x: 0.5, y: 0.88 }) {
   const value = text.trim();
   if (!value) return;
   const max = 42;
@@ -154,12 +154,13 @@ function drawCaption(g: OffscreenCanvasRenderingContext2D, text: string) {
   g.textAlign = "center";
   g.textBaseline = "middle";
   const lineH = 60;
-  const y = OUT_H - 190 - (lines.length - 1) * lineH / 2;
+  const centerX = position.x * OUT_W;
+  const centerY = position.y * OUT_H;
   const width = Math.min(940, Math.max(...lines.map((x) => g.measureText(x).width)) + 56);
   const height = lines.length * lineH + 28;
   g.fillStyle = "rgba(0,0,0,0.78)";
-  g.fillRect((OUT_W - width) / 2, y - height / 2, width, height);
+  g.fillRect(centerX - width / 2, centerY - height / 2, width, height);
   g.fillStyle = "#fff";
-  lines.forEach((x, i) => g.fillText(x, OUT_W / 2, y + (i - (lines.length - 1) / 2) * lineH));
+  lines.forEach((x, i) => g.fillText(x, centerX, centerY + (i - (lines.length - 1) / 2) * lineH));
   g.restore();
 }

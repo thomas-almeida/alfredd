@@ -42,6 +42,7 @@ import { windowTranscript, type Transcript } from "@/lib/transcript/client";
 
 /** Folga em volta do trecho escolhido, para o usuário poder ajustar o corte. */
 const CLIP_MARGIN_MS = 60_000;
+const DEFAULT_CAPTION_POSITION = { x: 0.5, y: 0.88 };
 
 const FOCUS_COLORS = ["#22d3ee", "#fbbf24", "#c084fc", "#fb7185"];
 
@@ -185,7 +186,7 @@ export function ClipEditor({
     let timer: ReturnType<typeof setTimeout> | undefined;
     let marked = ingest.status !== "novo";
     const unsub = useEditor.subscribe((s, prev) => {
-      if (s.segments === prev.segments && s.layout === prev.layout && s.camPos === prev.camPos && s.crops === prev.crops && s.keyframes === prev.keyframes && s.audio === prev.audio && s.tracks === prev.tracks) return;
+      if (s.segments === prev.segments && s.layout === prev.layout && s.camPos === prev.camPos && s.crops === prev.crops && s.keyframes === prev.keyframes && s.audio === prev.audio && s.tracks === prev.tracks && s.composition === prev.composition && s.captionPosition === prev.captionPosition) return;
       clearTimeout(timer);
       setSaving("saving");
       timer = setTimeout(async () => {
@@ -760,8 +761,32 @@ function VerticalPreview({
   captionsEnabled: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const frameRef = useRef<HTMLDivElement>(null);
   const PW = 270;
   const PH = (PW * OUT_H) / OUT_W;
+  const captionPosition = useEditor((s) => s.captionPosition ?? DEFAULT_CAPTION_POSITION);
+  const setCaptionPosition = useEditor((s) => s.setCaptionPosition);
+  const currentTime = useEditor((s) => s.currentTime);
+  const currentLine = transcript?.lines.find((item, index) => {
+    const nextStart = transcript.lines[index + 1]?.startMs ?? Infinity;
+    return currentTime * 1000 >= item.startMs && (currentTime * 1000 < item.endMs || currentTime * 1000 < nextStart);
+  });
+
+  function dragCaption(e: React.PointerEvent) {
+    e.preventDefault();
+    const box = frameRef.current?.getBoundingClientRect();
+    if (!box) return;
+    const onMove = (event: PointerEvent) => setCaptionPosition({
+      x: (event.clientX - box.left) / box.width,
+      y: (event.clientY - box.top) / box.height,
+    });
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
 
   useEffect(() => {
     const c = canvasRef.current;
@@ -806,11 +831,13 @@ function VerticalPreview({
             if (row) rows.push(row);
             const lineHeight = 16;
             const boxHeight = rows.length * lineHeight + 12;
-            const boxY = PH - 34 - boxHeight;
+            const statePosition = state.captionPosition ?? DEFAULT_CAPTION_POSITION;
+            const boxY = statePosition.y * PH - boxHeight / 2;
+            const boxX = statePosition.x * PW - (PW - 20) / 2;
             g.fillStyle = "rgba(0, 0, 0, 0.82)";
-            g.fillRect(10, boxY, PW - 20, boxHeight);
+            g.fillRect(boxX, boxY, PW - 20, boxHeight);
             g.fillStyle = "#fff";
-            rows.forEach((row, index) => g.fillText(row, PW / 2, boxY + 6 + index * lineHeight + lineHeight / 2));
+            rows.forEach((row, index) => g.fillText(row, statePosition.x * PW, boxY + 6 + index * lineHeight + lineHeight / 2));
           }
         }
       }
@@ -821,13 +848,19 @@ function VerticalPreview({
   }, [videoRef, srcW, srcH, PH, transcript, captionsEnabled]);
 
   return (
-    <canvas
-      ref={canvasRef}
-      width={PW}
-      height={PH}
-      className="rounded-md border border-border bg-black self-center"
-      style={{ width: PW, height: PH }}
-    />
+    <div ref={frameRef} className="relative self-center" style={{ width: PW, height: PH }}>
+      <canvas ref={canvasRef} width={PW} height={PH} className="rounded-md border border-border bg-black" style={{ width: PW, height: PH }} />
+      {captionsEnabled && currentLine && (
+        <div
+          className="absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-move rounded border-2 border-amber-400 px-2 py-1 text-[10px] font-semibold text-amber-100 bg-black/35"
+          style={{ left: `${captionPosition.x * 100}%`, top: `${captionPosition.y * 100}%` }}
+          onPointerDown={dragCaption}
+          title="Arraste para posicionar a legenda"
+        >
+          Legenda
+        </div>
+      )}
+    </div>
   );
 }
 

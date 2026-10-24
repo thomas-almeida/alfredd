@@ -51,6 +51,10 @@ test("compositionAt prioriza composição salva e mantém todos os focos", () =>
   assert.deepEqual(compositionAt(state, 10), composition);
 });
 
+test("defaultState inicia legendas em posição inferior central", () => {
+  assert.deepEqual(defaultState(60).captionPosition, { x: 0.5, y: 0.88 });
+});
+
 const near = (a: number, b: number) => assert.ok(Math.abs(a - b) < 1e-6, `${a} ≈ ${b}`);
 
 test("slotsFor cobre o frame 1080×1920", () => {
