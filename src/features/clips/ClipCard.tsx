@@ -62,7 +62,7 @@ export function ClipCard({
           <BroadcasterTag name={clip.broadcasterName} avatar={clip.broadcasterAvatar} />
         )}
         <div className="flex gap-3 text-subtle text-xs">
-          <span className="inline-flex items-center gap-1">
+          <span suppressHydrationWarning className="inline-flex items-center gap-1">
             <Icon name="eye" width={14} height={14} />
             {formatViews(clip.viewCount)}
           </span>

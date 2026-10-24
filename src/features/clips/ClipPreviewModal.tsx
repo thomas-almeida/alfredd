@@ -136,7 +136,7 @@ export function ClipPreviewModal({
             </span>
             <span className="inline-flex items-center gap-1">
               <Icon name="clock" width={14} height={14} />
-              {timeAgo(clip.createdAt)}
+              <span suppressHydrationWarning>{timeAgo(clip.createdAt)}</span>
             </span>
           </div>
 

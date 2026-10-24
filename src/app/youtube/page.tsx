@@ -5,25 +5,25 @@ import { Button } from "@/components/ui/Button";
 import { YoutubeEngagement } from "@/features/youtube/YoutubeEngagement";
 import { getSession } from "@/lib/auth";
 
-export const metadata = { title: "Engajamento YouTube" };
+export const metadata = { title: "YouTube" };
 export const dynamic = "force-dynamic";
 
 export default async function YoutubePage({
   searchParams,
 }: {
-  searchParams: Promise<{ channel?: string }>;
+  searchParams: Promise<{ channel?: string; video?: string }>;
 }) {
   const session = await getSession();
-  const { channel } = await searchParams;
+  const { channel, video } = await searchParams;
 
   return (
-    <AppShell crumbs={[{ label: "Engajamento YouTube" }]}>
+    <AppShell crumbs={[{ label: "YouTube" }]}>
       <PageHeader
         title="YouTube"
         subtitle="Acompanhe a viralização de um vídeo ou criador para clipar em cima dos conteúdos e pegar cortes antecipados da concorrência."
       />
       {session ? (
-        <YoutubeEngagement initialChannel={channel} />
+        <YoutubeEngagement initialChannel={channel} initialVideo={video} />
       ) : (
         <EmptyState
           icon="eye"

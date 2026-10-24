@@ -10,7 +10,7 @@ export default async function HomePage() {
     <AppShell>
       <section className="py-12 pb-8 max-w-[760px] mx-auto text-center flex flex-col items-center">
         <Badge tone="accent">Seu Mordomo de Clipes</Badge>
-        <h1 className="text-6xl font-thin tracking-tighter px-2 mt-4">
+        <h1 className="text-6xl font-thin tracking-tighter font-serif px-2 mt-4">
           Descubra os melhores momentos antes que viralizem.
         </h1>
         <p className="text-muted text-base mt-4 max-w-[60ch]">

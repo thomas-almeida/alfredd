@@ -96,7 +96,7 @@ export function LibraryItemCard({ item, isPro }: { item: LibraryItemView; isPro:
         )}
         <div className="flex items-center gap-3">
           <Badge tone="neutral">{formatViews(item.viewCount)} views</Badge>
-          <span className="text-xs text-subtle">{timeAgo(item.createdAt)}</span>
+          <span suppressHydrationWarning className="text-xs text-subtle">{timeAgo(item.createdAt)}</span>
         </div>
         <div className="flex gap-2 mt-auto flex-wrap items-center">
           <Link href={`/clipes/${item.twitchId}/editor`} className={editBtn}>

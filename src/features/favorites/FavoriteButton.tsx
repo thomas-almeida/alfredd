@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import {
   favoriteGame,
   favoriteStreamer,
   favoriteYoutuber,
+  isFavorited,
+  unfavorite,
   type ActionResult,
+  type FavoriteTarget,
 } from "./actions";
 import { useAuthModal } from "@/features/auth/AuthModal";
 
@@ -31,13 +34,49 @@ type YoutuberProps = {
   thumbnailUrl: string | null;
 };
 
+function toTarget(
+  props: GameProps | StreamerProps | YoutuberProps,
+): FavoriteTarget {
+  return props.kind === "youtuber"
+    ? { kind: "youtuber", channelId: props.channelId }
+    : { kind: props.kind, twitchId: props.twitchId };
+}
+
 export function FavoriteButton(
   props: GameProps | StreamerProps | YoutuberProps,
 ) {
   const { openAuth } = useAuthModal();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
-  const [done, setDone] = useState(false);
+  // null enquanto o status inicial ainda não chegou.
+  const [favorited, setFavorited] = useState<boolean | null>(null);
+
+  const targetId = props.kind === "youtuber" ? props.channelId : props.twitchId;
+  useEffect(() => {
+    let cancelled = false;
+    setFavorited(null);
+    setMsg(null);
+    isFavorited(toTarget(props)).then((v) => {
+      if (!cancelled) setFavorited(v);
+    });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.kind, targetId]);
+
+  function remove() {
+    setMsg(null);
+    start(async () => {
+      const res = await unfavorite(toTarget(props));
+      if (res.ok) {
+        setFavorited(false);
+        setMsg("Removido dos favoritos.");
+      } else {
+        setMsg(res.error ?? "Não foi possível remover dos favoritos.");
+      }
+    });
+  }
 
   function run() {
     setMsg(null);
@@ -70,7 +109,7 @@ export function FavoriteButton(
           onSuccess: () => run(),
         });
       } else if (res.ok) {
-        setDone(true);
+        setFavorited(true);
         setMsg(res.already ? "Já estava nos favoritos." : "Adicionado aos favoritos.");
       } else {
         setMsg(res.error ?? "Não foi possível favoritar.");
@@ -78,10 +117,17 @@ export function FavoriteButton(
     });
   }
 
+  let label = favorited ? "Desfavoritar" : "Favoritar";
+  if (pending) label = favorited ? "Removendo…" : "Salvando…";
+
   return (
     <div className="flex flex-col gap-1.5 items-end">
-      <Button variant="secondary" onClick={run} disabled={pending || done}>
-        {done ? "Favoritado" : pending ? "Salvando…" : "Favoritar"}
+      <Button
+        variant="secondary"
+        onClick={favorited ? remove : run}
+        disabled={pending || favorited === null}
+      >
+        {label}
       </Button>
       {msg && <span className="text-xs text-muted">{msg}</span>}
     </div>

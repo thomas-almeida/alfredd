@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
@@ -35,6 +35,7 @@ export function Sidebar({
   creators?: SidebarCreator[];
 }) {
   const pathname = usePathname();
+  const selectedChannel = useSearchParams().get("channel");
   const [collapsed, setCollapsed] = useState(false);
   const [streamersHidden, setStreamersHidden] = useState(false);
   const [removedCreators, setRemovedCreators] = useState<Set<string>>(new Set());
@@ -191,7 +192,9 @@ export function Sidebar({
             {(collapsed || !streamersHidden) &&
               creators.filter((s) => !removedCreators.has(s.key)).map((s) => {
                 const youtube = s.platform === "youtube";
-                const active = youtube ? pathname === "/youtube" : isActive(pathname, s.href);
+                const active = youtube
+                  ? pathname === "/youtube" && selectedChannel === s.key.slice("youtube:".length)
+                  : isActive(pathname, s.href);
                 const className = cn(
                   "flex items-center gap-3 py-1.5 rounded-sm text-[13px] font-medium transition-colors",
                   collapsed ? "justify-center px-0" : "px-2",
@@ -234,6 +237,7 @@ export function Sidebar({
                     key={s.key}
                     href={s.href}
                     className={className}
+                    aria-current={active ? "page" : undefined}
                     title={title}
                   >
                     {content}

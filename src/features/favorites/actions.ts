@@ -44,6 +44,61 @@ export async function removeYoutubeFavorite(
   return { ok: !error };
 }
 
+export type FavoriteTarget =
+  | { kind: "game"; twitchId: string }
+  | { kind: "streamer"; twitchId: string }
+  | { kind: "youtuber"; channelId: string };
+
+/** Id do favorito do usuário para o alvo, ou null se não favoritado. */
+async function findFavoriteId(target: FavoriteTarget): Promise<string | null> {
+  const supabase = await createClient();
+  if (target.kind === "youtuber") {
+    const { data } = await supabase
+      .from("youtube_favorites")
+      .select("id")
+      .eq("channel_id", target.channelId)
+      .maybeSingle();
+    return data?.id ?? null;
+  }
+
+  const table = target.kind === "game" ? "games" : "streamers";
+  const { data: catalog } = await supabase
+    .from(table)
+    .select("id")
+    .eq("twitch_id", target.twitchId)
+    .maybeSingle();
+  if (!catalog) return null;
+
+  const { data } = await supabase
+    .from("favorites")
+    .select("id")
+    .eq(target.kind === "game" ? "game_id" : "streamer_id", catalog.id)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
+/** Indica se o alvo já está nos favoritos do usuário logado. */
+export async function isFavorited(target: FavoriteTarget): Promise<boolean> {
+  const session = await getSession();
+  if (!session) return false;
+  return (await findFavoriteId(target)) !== null;
+}
+
+/** Remove dos favoritos pelo id natural (Twitch ou canal do YouTube). */
+export async function unfavorite(target: FavoriteTarget): Promise<ActionResult> {
+  const session = await getSession();
+  if (!session) return { ok: false, error: "unauthenticated" };
+
+  const favoriteId = await findFavoriteId(target);
+  if (!favoriteId) return { ok: true, already: true };
+
+  const { ok } =
+    target.kind === "youtuber"
+      ? await removeYoutubeFavorite(favoriteId)
+      : await removeFavorite(favoriteId);
+  return ok ? { ok: true } : { ok: false, error: "Não foi possível remover dos favoritos." };
+}
+
 /** Favorita um canal do YouTube (tabela própria, sem catálogo). */
 export async function favoriteYoutuber(input: {
   channelId: string;

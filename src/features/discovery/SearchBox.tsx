@@ -8,6 +8,8 @@ import type { ClipCardData } from "@/features/clips/ClipCard";
 import { ClipPreviewModal } from "@/features/clips/ClipPreviewModal";
 import { lookupClip } from "./actions";
 import { parseTwitchLink } from "./twitchLink";
+import { parseChannel, parseVideo } from "@/lib/youtube/parse";
+import { parseTwitchUrl } from "@/lib/twitch/media/gql";
 
 /**
  * Campo de busca unificado (jogos/streamers). Encaminha a query para /explorar;
@@ -33,6 +35,24 @@ export function SearchBox({
   async function go(raw: string) {
     const term = raw.trim();
     setError(null);
+    const youtubeVideo = parseVideo(term);
+    if (youtubeVideo) {
+      setQ("");
+      startNav(() => router.push(`/youtube?video=${encodeURIComponent(youtubeVideo.videoId)}`));
+      return;
+    }
+    const youtubeChannel = parseChannel(term);
+    if (youtubeChannel) {
+      setQ("");
+      startNav(() => router.push(`/youtube?channel=${encodeURIComponent(youtubeChannel.value)}`));
+      return;
+    }
+    const twitchMedia = parseTwitchUrl(term);
+    if (twitchMedia) {
+      setQ("");
+      startNav(() => router.push(`/twitch?url=${encodeURIComponent(term)}`));
+      return;
+    }
     const link = parseTwitchLink(term);
     if (link?.kind === "channel") {
       setQ("");
@@ -59,7 +79,7 @@ export function SearchBox({
 
   function paste(e: React.ClipboardEvent<HTMLInputElement>) {
     const text = e.clipboardData.getData("text").trim();
-    if (!parseTwitchLink(text)) return;
+    if (!parseTwitchLink(text) && !parseTwitchUrl(text) && !parseVideo(text) && !parseChannel(text)) return;
     e.preventDefault();
     setQ(text);
     void go(text);

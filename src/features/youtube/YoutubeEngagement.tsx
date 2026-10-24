@@ -72,9 +72,9 @@ function TierBadge({ tier }: { tier: Tier }) {
   return <Badge tone={t.tone}>{t.label}</Badge>;
 }
 
-export function YoutubeEngagement({ initialChannel }: { initialChannel?: string }) {
+export function YoutubeEngagement({ initialChannel, initialVideo }: { initialChannel?: string; initialVideo?: string }) {
   const [mode, setMode] = useState<Mode>(initialChannel ? "channel" : "video");
-  const [url, setUrl] = useState(initialChannel ?? "");
+  const [url, setUrl] = useState(initialChannel ?? initialVideo ?? "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [video, setVideo] = useState<VideoEngagement | null>(null);
@@ -101,8 +101,15 @@ export function YoutubeEngagement({ initialChannel }: { initialChannel?: string 
         );
         return;
       }
-      if (nextMode === "video") setVideo(json as VideoEngagement);
-      else setChannel(json as ChannelEngagement);
+      // Mantém ?channel= em sincronia para a sidebar destacar o criador certo.
+      if (nextMode === "video") {
+        setVideo(json as VideoEngagement);
+        window.history.replaceState(null, "", "/youtube");
+      } else {
+        const c = json as ChannelEngagement;
+        setChannel(c);
+        window.history.replaceState(null, "", `/youtube?channel=${encodeURIComponent(c.channelId)}`);
+      }
     } catch {
       setError("Falha de rede ao consultar o YouTube.");
     } finally {
@@ -112,9 +119,10 @@ export function YoutubeEngagement({ initialChannel }: { initialChannel?: string 
 
   useEffect(() => {
     if (initialChannel) void fetchEngagement(initialChannel, "channel");
+    else if (initialVideo) void fetchEngagement(initialVideo, "video");
     // A URL-selected favorite is intentionally loaded once on entry.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialChannel]);
+  }, [initialChannel, initialVideo]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -126,9 +134,11 @@ export function YoutubeEngagement({ initialChannel }: { initialChannel?: string 
     { id: "channel", label: "Canal" },
   ];
 
+  const showSearch = !(initialChannel && mode === "channel");
+
   return (
     <div className="flex flex-col gap-6">
-      <Card>
+      {showSearch && <Card>
         <div role="tablist" aria-label="Tipo de análise" className="mb-4 flex gap-1 border-b border-border">
           {tabs.map((t) => (
             <button
@@ -174,7 +184,7 @@ export function YoutubeEngagement({ initialChannel }: { initialChannel?: string 
             {error}
           </p>
         )}
-      </Card>
+      </Card>}
 
       {mode === "video" && video && <VideoPanel key={video.videoId} v={video} />}
       {mode === "channel" && channel && <ChannelPanel key={channel.channelId} c={channel} />}
@@ -411,7 +421,7 @@ function ChannelPanel({ c }: { c: ChannelEngagement }) {
                         {v.title}
                       </a>
                       <span className="text-[12px] text-subtle">
-                        {v.isShortLikely ? "Short" : "Longo"} · há {fmtAge(v.ageHours)}
+                        {v.isShortLikely ? "Short" : "Longo"} · {fmtDuration(v.durationSeconds)} · há {fmtAge(v.ageHours)}
                       </span>
                       <div className="mt-2">
                         <SaveYoutubeClipButton videoId={v.videoId} title={v.title} channelTitle={c.title} thumbnailUrl={v.thumbnailUrl} durationSeconds={v.durationSeconds} />
