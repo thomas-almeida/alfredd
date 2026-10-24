@@ -16,6 +16,7 @@ function isActive(pathname: string, href: string): boolean {
 const COLLAPSED_KEY = "sidebar_collapsed";
 const COLLAPSED_WIDTH = "64px";
 const STREAMERS_HIDDEN_KEY = "sidebar_streamers_hidden";
+const GAMES_HIDDEN_KEY = "sidebar_games_hidden";
 
 /** Criador favoritado (streamer da Twitch ou canal do YouTube). */
 export interface SidebarCreator {
@@ -48,6 +49,7 @@ export function Sidebar({
   const selectedChannel = useSearchParams().get("channel");
   const [collapsed, setCollapsed] = useState(false);
   const [streamersHidden, setStreamersHidden] = useState(false);
+  const [gamesHidden, setGamesHidden] = useState(false);
   const [removedCreators, setRemovedCreators] = useState<Set<string>>(new Set());
   const [removedGames, setRemovedGames] = useState<Set<string>>(new Set());
   const [confirmCreator, setConfirmCreator] = useState<SidebarCreator | null>(null);
@@ -68,12 +70,27 @@ export function Sidebar({
     } catch {}
   }, []);
 
+  useEffect(() => {
+    try {
+      setGamesHidden(localStorage.getItem(GAMES_HIDDEN_KEY) === "1");
+    } catch {}
+  }, []);
+
   function toggleStreamers() {
     setStreamersHidden((h) => {
       try {
         localStorage.setItem(STREAMERS_HIDDEN_KEY, h ? "0" : "1");
       } catch {}
       return !h;
+    });
+  }
+
+  function toggleGames() {
+    setGamesHidden((hidden) => {
+      try {
+        localStorage.setItem(GAMES_HIDDEN_KEY, hidden ? "0" : "1");
+      } catch {}
+      return !hidden;
     });
   }
 
@@ -289,8 +306,11 @@ export function Sidebar({
             )}
             {!collapsed && games.length > 0 && (
               <div className="mt-3 border-t border-border pt-2">
-                <div className="px-2 pt-1 pb-1 text-xs uppercase tracking-wider text-subtle">Jogos favoritos ({games.length})</div>
-                {games.filter((game) => !removedGames.has(game.key)).map((game) => {
+                <button type="button" onClick={toggleGames} className="flex w-full items-center gap-1 px-2 pt-1 pb-1 text-left text-xs uppercase tracking-wider text-subtle hover:text-fg" aria-expanded={!gamesHidden}>
+                  Jogos favoritos ({games.length})
+                  <Icon name="chevron-right" width={14} height={14} className={cn("ml-auto transition-transform", !gamesHidden && "rotate-90")} />
+                </button>
+                {!gamesHidden && games.filter((game) => !removedGames.has(game.key)).map((game) => {
                   const active = isActive(pathname, game.href);
                   return (
                     <div key={game.key} className="group relative">
@@ -302,6 +322,7 @@ export function Sidebar({
                     </div>
                   );
                 })}
+                {!gamesHidden && <Link href="/favoritos" className="block px-2 py-1 text-xs text-subtle hover:text-fg">Ver todos os favoritos</Link>}
               </div>
             )}
             {collapsed && games.filter((game) => !removedGames.has(game.key)).map((game) => (
