@@ -88,11 +88,7 @@ export async function AppShell({
         style={authed ? authedGrid : publicGrid}
       >
         {authed && <Sidebar clipCount={clipCount} creators={favCreators} />}
-        <TopBar
-          crumbs={crumbs}
-          email={session?.email ?? null}
-          publicNav={!authed}
-        />
+        <TopBar crumbs={crumbs} email={session?.email ?? null} />
         <main
           className={
             authed
