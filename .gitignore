@@ -34,3 +34,6 @@ coverage/
 .idea/
 .vercel/
 src/ALFREDD/
+
+# Artefatos de referência não integrados ao app
+features-new/
