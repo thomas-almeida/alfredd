@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ClipEditor } from "@/features/editor/ClipEditor";
+import { ProPageGate } from "@/features/billing/ProPageGate";
 import { upsertClipCatalog } from "@/features/library/catalog";
 import { createClient } from "@/lib/supabase/server";
 import { getSession } from "@/lib/auth";
@@ -63,16 +64,10 @@ export default async function ClipEditorPage({
     >
       <PageHeader title={title || "Editor de clipe"} subtitle="Corte, enquadre e exporte em 9:16" />
       {blocked ? (
-        <EmptyState
-          icon="bookmark"
-          title="Limite do plano Free atingido"
-          description="O plano Free permite 5 clipes. Assine o PRO para salvar e editar mais clipes."
-          action={
-            <Link href="/assinatura">
-              <Button variant="primary">Assinar o PRO</Button>
-            </Link>
-          }
-        />
+        <>
+          <EmptyState icon="bookmark" title="Limite do plano Free atingido" description="Assine o PRO para salvar e editar mais clipes." />
+          <ProPageGate title="Limite do plano Free atingido" description="O plano Free permite salvar até 5 clipes. Assine o PRO para continuar salvando e editando." />
+        </>
       ) : (
         <ClipEditor twitchId={id} userId={session.userId} title={title || id} />
       )}

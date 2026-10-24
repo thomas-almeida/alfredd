@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/client";
 import type { Json } from "@/lib/supabase/database.types";
 import { useEditor } from "@/lib/editor/store";
 import type { ExportMessage, ExportRequest } from "@/lib/export/export.worker";
+import type { Transcript } from "@/lib/transcript/client";
 
 type Phase = "idle" | "encoding" | "uploading" | "done" | "error";
 
@@ -18,12 +19,18 @@ export function ExportPanel({
   userId,
   sourceUrl,
   fileName,
+  persist = true,
+  transcript,
+  captionsEnabled = false,
   onExported,
 }: {
   clipId: string;
   userId: string;
   sourceUrl: string;
   fileName: string;
+  persist?: boolean;
+  transcript?: Transcript | null;
+  captionsEnabled?: boolean;
   onExported?: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
@@ -69,6 +76,12 @@ export function ExportPanel({
 
       const blob = new Blob([m.buffer], { type: "video/mp4" });
       setDownloadUrl(URL.createObjectURL(blob));
+      if (!persist) {
+        setProgress(1);
+        setPhase("done");
+        onExported?.();
+        return;
+      }
       setPhase("uploading");
       try {
         const supabase = createClient();
@@ -101,7 +114,8 @@ export function ExportPanel({
         setPhase("error");
       }
     };
-    worker.postMessage({ sourceUrl: new URL(sourceUrl, location.href).href, state } satisfies ExportRequest);
+    const captions = captionsEnabled && transcript ? transcript.lines.map((line) => ({ startMs: line.startMs, endMs: line.endMs, text: line.text })) : [];
+    worker.postMessage({ sourceUrl: new URL(sourceUrl, location.href).href, state, captions } satisfies ExportRequest);
   }
 
   if (!supported) {

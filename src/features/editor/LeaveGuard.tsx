@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Button } from "@/components/ui/Button";
 
 /**
@@ -45,7 +46,9 @@ export function LeaveGuard({ active }: { active: boolean }) {
   }, [target]);
 
   if (!target) return null;
-  return (
+  // Portal no body: o editor fica dentro de uma coluna sticky (contexto de
+  // empilhamento próprio), e o retângulo de crop cobriria o modal.
+  return createPortal(
     <div
       className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/65 backdrop-blur-sm"
       onClick={() => setTarget(null)}
@@ -80,6 +83,7 @@ export function LeaveGuard({ active }: { active: boolean }) {
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

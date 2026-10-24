@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import { useEditor } from "@/lib/editor/store";
@@ -12,18 +12,31 @@ import {
   OUT_W,
   centeredCrop,
   cropToPixels,
+  cropsAt,
+  inSegments,
+  keyframeIndexAt,
   lockAspect,
+  nextPlayable,
+  outputSegments,
+  segmentIndexAt,
   slotsFor,
+  framingAt,
   type EditorState,
+  type Framing,
   type Layout,
   type NRect,
 } from "@/lib/export/layouts";
 import type { ClipStatus, Json } from "@/lib/supabase/database.types";
 import { ClipStatusBadge } from "./ClipStatusBadge";
+import { MOTION_PRESETS, camRectFromFaces, detectPeaks, rmsEnvelope } from "@/lib/editor/motion";
 import { EditorLoader, type LoaderStep } from "./EditorLoader";
 import { ExportPanel } from "./ExportPanel";
 import { LeaveGuard } from "./LeaveGuard";
+import { Icon } from "@/components/ui/Icon";
+import { Timeline, type Selection } from "./Timeline";
 import { nextClip } from "./actions";
+import { TranscriptPanel } from "./TranscriptPanel";
+import type { Transcript } from "@/lib/transcript/client";
 
 type SlotKey = "game" | "cam";
 type Ingest = {
@@ -33,6 +46,29 @@ type Ingest = {
   duration: number;
   /** Proxy same-origin do MP4 da Twitch (Range), usado no <video> e no export. */
   sourceUrl: string;
+  persist: boolean;
+};
+
+export type YoutubeEditorInput = {
+  savedId: string;
+  videoId: string;
+  title: string;
+  channel: string | null;
+  durationMs: number;
+  startMs: number | null;
+  endMs: number | null;
+};
+
+export type ExternalEditorInput = {
+  sourceUrl: string;
+  /** URL pública original, usada para resolver a transcrição. */
+  transcriptUrl?: string;
+  transcriptWindow?: { startMs: number; endMs: number };
+  title: string;
+  channel: string | null;
+  durationMs: number;
+  startMs?: number;
+  endMs?: number;
 };
 
 type Phase = "ingest" | "project";
@@ -44,25 +80,28 @@ const INGEST_ERRORS: Record<string, string> = {
 };
 
 /** Proporção (w/h) do slot de destino de cada crop. */
+/** Campo do enquadramento da faixa ativa. */
+function useFraming<K extends keyof Framing>(key: K): Framing[K] {
+  return useEditor((s) => ((s.activeTrack > 0 && s.tracks?.[s.activeTrack - 1]) || s)[key]);
+}
+
 function slotAspect(layout: Layout, key: SlotKey) {
   const s = slotsFor(layout).find((x) => x.key === key);
   return s ? { w: s.dw, h: s.dh } : { w: OUT_W, h: CAM_H };
 }
 
-const fmt = (t: number) => {
-  const m = Math.floor(t / 60);
-  const s = (t % 60).toFixed(1).padStart(4, "0");
-  return `${m}:${s}`;
-};
-
 export function ClipEditor({
   twitchId,
   userId,
   title,
+  youtube,
+  external,
 }: {
   twitchId: string;
   userId: string;
   title: string;
+  youtube?: YoutubeEditorInput;
+  external?: ExternalEditorInput;
 }) {
   const [ingest, setIngest] = useState<Ingest | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -74,6 +113,23 @@ export function ClipEditor({
   useEffect(() => {
     let alive = true;
     (async () => {
+      const externalSource = external ?? (youtube ? {
+        sourceUrl: `/api/youtube/source?videoId=${encodeURIComponent(youtube.videoId)}`,
+        title: youtube.title,
+        channel: youtube.channel,
+        durationMs: youtube.durationMs,
+        startMs: youtube.startMs ?? 0,
+        endMs: youtube.endMs ?? youtube.durationMs,
+      } : null);
+      if (externalSource) {
+        const duration = externalSource.durationMs / 1000;
+        const start = (externalSource.startMs ?? 0) / 1000;
+        const end = (externalSource.endMs ?? externalSource.durationMs) / 1000;
+        init(duration, { segments: [{ start, end }] });
+        setPhase("project");
+        setIngest({ clipId: "external", channel: externalSource.channel, status: "novo", duration, sourceUrl: externalSource.sourceUrl, persist: false });
+        return;
+      }
       const res = await fetch(`/api/clips/${twitchId}/ingest`, { method: "POST" });
       const json = (await res.json()) as Ingest & { error?: string };
       if (!alive) return;
@@ -91,21 +147,21 @@ export function ClipEditor({
         .maybeSingle();
       if (!alive) return;
       init(json.duration, (data?.state as Partial<EditorState> | null) ?? null);
-      setIngest(json);
+      setIngest({ ...json, persist: true });
     })().catch((e) => alive && setError(e instanceof Error ? e.message : String(e)));
     return () => {
       alive = false;
     };
-  }, [twitchId, userId, init]);
+  }, [twitchId, userId, init, youtube, external]);
 
   // Autosave com debounce de 1 s; primeira edição marca o clipe como em edição.
   useEffect(() => {
-    if (!ingest) return;
+    if (!ingest?.persist) return;
     const supabase = createClient();
     let timer: ReturnType<typeof setTimeout> | undefined;
     let marked = ingest.status !== "novo";
     const unsub = useEditor.subscribe((s, prev) => {
-      if (s.trim === prev.trim && s.layout === prev.layout && s.camPos === prev.camPos && s.crops === prev.crops) return;
+      if (s.segments === prev.segments && s.layout === prev.layout && s.camPos === prev.camPos && s.crops === prev.crops && s.keyframes === prev.keyframes && s.audio === prev.audio && s.tracks === prev.tracks) return;
       clearTimeout(timer);
       setSaving("saving");
       timer = setTimeout(async () => {
@@ -164,6 +220,8 @@ export function ClipEditor({
       ingest={ingest}
       userId={userId}
       title={title}
+      transcriptUrl={external?.transcriptUrl ?? (youtube ? `https://www.youtube.com/watch?v=${youtube.videoId}` : `https://clips.twitch.tv/${twitchId}`)}
+      transcriptWindow={external?.transcriptWindow}
       saving={saving}
     />
   );
@@ -173,31 +231,54 @@ function EditorBody({
   ingest,
   userId,
   title,
+  transcriptUrl,
+  transcriptWindow,
   saving,
 }: {
   ingest: Ingest;
   userId: string;
   title: string;
+  transcriptUrl: string;
+  transcriptWindow?: { startMs: number; endMs: number };
   saving: "idle" | "saving" | "saved";
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [active, setActive] = useState<SlotKey>("game");
   const [loop, setLoop] = useState(true);
+  const [selected, setSelected] = useState<Selection>(null);
   const [volume, setVolume] = useState(1);
   const [muted, setMuted] = useState(false);
+  const [rate, setRate] = useState(1);
+  const mutedRef = useRef(muted);
+  mutedRef.current = muted;
   const [src, setSrc] = useState({ w: 1920, h: 1080 });
-  const layout = useEditor((s) => s.layout);
+  const layout = useFraming("layout");
+  const playing = useEditor((s) => s.playing);
   const router = useRouter();
   const [nextPending, startNext] = useTransition();
   const [noNext, setNoNext] = useState(false);
   const [exported, setExported] = useState(ingest.status === "exportado");
+  const [transcript, setTranscript] = useState<Transcript | null>(null);
+  const [captionsEnabled, setCaptionsEnabled] = useState(false);
+  const editorTranscript = useMemo(() => {
+    const offset = transcriptWindow?.startMs ?? 0;
+    if (!transcript || !offset) return transcript;
+    const shift = (ms: number) => Math.max(0, ms - offset);
+    return {
+      ...transcript,
+      durationMs: Math.max(0, transcript.durationMs - offset),
+      words: transcript.words.map((word) => ({ ...word, startMs: shift(word.startMs), endMs: shift(word.endMs) })),
+      lines: transcript.lines.map((line) => ({ ...line, startMs: shift(line.startMs), endMs: shift(line.endMs) })),
+      chunks: transcript.chunks.map((chunk) => ({ ...chunk, startMs: shift(chunk.startMs), endMs: shift(chunk.endMs) })),
+    };
+  }, [transcript, transcriptWindow]);
 
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
     v.volume = volume;
-    v.muted = muted;
-  }, [volume, muted, ingest]);
+    v.playbackRate = rate;
+  }, [volume, rate, ingest]);
 
   const activeKey: SlotKey = layout === "full" ? "game" : active;
 
@@ -207,10 +288,20 @@ function EditorBody({
     if (!v) return;
     let raf = 0;
     const tick = () => {
-      const { trim, setTime } = useEditor.getState();
-      if (!v.seeking && v.currentTime >= trim.end) {
-        if (loop) v.currentTime = trim.start;
-        else v.pause();
+      const st = useEditor.getState();
+      const { audio, setTime } = st;
+      const segments = outputSegments(st);
+      // Áudio desvinculado: silencia fora dos trechos de áudio.
+      v.muted = mutedRef.current || (audio != null && !inSegments(audio, v.currentTime));
+      // Pula os buracos entre segmentos; ao fim, volta ao início (loop) ou pausa.
+      if (!v.seeking && !v.paused) {
+        const next = nextPlayable(segments, v.currentTime);
+        if (next === null) {
+          if (loop) v.currentTime = segments[0]!.start;
+          else {
+            v.pause();
+          }
+        } else if (next > v.currentTime + 0.01) v.currentTime = next;
       }
       setTime(v.currentTime);
       raf = requestAnimationFrame(tick);
@@ -220,7 +311,7 @@ function EditorBody({
     const onPause = () => useEditor.getState().setPlaying(false);
     const onMeta = () => {
       if (v.videoWidth) setSrc({ w: v.videoWidth, h: v.videoHeight });
-      v.currentTime = useEditor.getState().trim.start;
+      v.currentTime = outputSegments(useEditor.getState())[0]!.start;
     };
     v.addEventListener("play", onPlay);
     v.addEventListener("pause", onPause);
@@ -236,9 +327,9 @@ function EditorBody({
   const togglePlay = useCallback(() => {
     const v = videoRef.current;
     if (!v) return;
-    const { trim } = useEditor.getState();
+    const segments = outputSegments(useEditor.getState());
     if (v.paused) {
-      if (v.currentTime < trim.start || v.currentTime >= trim.end) v.currentTime = trim.start;
+      v.currentTime = nextPlayable(segments, v.currentTime) ?? segments[0]!.start;
       // play() rejeita com AbortError se um pause() chegar antes de começar; é esperado.
       v.play().catch(() => {});
     } else v.pause();
@@ -255,7 +346,17 @@ function EditorBody({
       const tag = (e.target as HTMLElement | null)?.tagName;
       if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
       const st = useEditor.getState();
-      const t = videoRef.current?.currentTime ?? st.currentTime;
+      const v = videoRef.current;
+      const t = v?.currentTime ?? st.currentTime;
+      if (e.ctrlKey || e.metaKey) {
+        const k = e.key.toLowerCase();
+        if (k === "z" && !e.shiftKey) st.undo();
+        else if (k === "y" || (k === "z" && e.shiftKey)) st.redo();
+        else return;
+        e.preventDefault();
+        return;
+      }
+      const cur = segmentIndexAt(st.segments, t);
       switch (e.key) {
         case " ":
           e.preventDefault();
@@ -263,15 +364,50 @@ function EditorBody({
           break;
         case "i":
         case "I":
-          st.setTrim(t, st.trim.end);
+          if (cur >= 0) st.setSegmentEdge(cur, "start", t);
           break;
         case "o":
         case "O":
-          st.setTrim(st.trim.start, t);
+          if (cur >= 0) st.setSegmentEdge(cur, "end", t);
+          break;
+        case "s":
+        case "S":
+          if (selected?.track === "audio" && st.audio) st.splitAudio(t);
+          else st.split(t);
+          break;
+        case "Delete":
+        case "Backspace": {
+          if (selected?.track === "audio" && st.audio) {
+            st.removeAudioAt(selected.i);
+            setSelected(null);
+            break;
+          }
+          const i = selected?.i ?? cur;
+          if (i >= 0) {
+            st.removeAt(i);
+            setSelected(null);
+          }
+          break;
+        }
+        case "j":
+        case "J":
+          seek(t - 1);
+          break;
+        case "k":
+        case "K":
+          if (v) {
+            v.pause();
+            v.playbackRate = 1;
+          }
           break;
         case "l":
         case "L":
-          setLoop((x) => !x);
+          if (v) {
+            // Cada L acelera: 1× → 2× → 4×.
+            if (v.paused) v.playbackRate = 1;
+            else v.playbackRate = Math.min(4, v.playbackRate * 2);
+            if (v.paused) togglePlay();
+          }
           break;
         case "ArrowLeft":
           e.preventDefault();
@@ -285,9 +421,10 @@ function EditorBody({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [togglePlay, seek]);
+  }, [togglePlay, seek, selected]);
 
   function goNext() {
+    if (!ingest.persist) return;
     setNoNext(false);
     startNext(async () => {
       const id = await nextClip(ingest.clipId);
@@ -299,14 +436,24 @@ function EditorBody({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center gap-3 flex-wrap">
-        <ClipStatusBadge clipId={ingest.clipId} initial={ingest.status} />
+        {ingest.persist && <ClipStatusBadge clipId={ingest.clipId} initial={ingest.status} />}
         <span className="text-[13px] text-muted">
           {saving === "saving" ? "Salvando…" : saving === "saved" ? "Alterações salvas" : ""}
         </span>
         <div className="ml-auto flex gap-2">
-          <Button variant="ghost" size="sm" onClick={goNext} disabled={nextPending}>
-            {nextPending ? "Buscando…" : "Próximo clip →"}
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              if (window.confirm("Reiniciar a edição do zero? Cortes, faixas de câmera, crops e keyframes voltam ao padrão. Dá para desfazer com Ctrl+Z."))
+                useEditor.getState().resetEdit();
+            }}
+          >
+            Reiniciar edição
           </Button>
+          {ingest.persist && <Button variant="ghost" size="sm" onClick={goNext} disabled={nextPending}>
+            {nextPending ? "Buscando…" : "Próximo clip →"}
+          </Button>}
         </div>
       </div>
       {noNext && (
@@ -315,7 +462,21 @@ function EditorBody({
         </p>
       )}
 
-      <div className="grid grid-cols-[1fr_300px] gap-5 items-start max-[960px]:grid-cols-1">
+      <div className="grid grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(250px,300px)] gap-5 items-start max-[1200px]:grid-cols-[280px_minmax(0,1fr)] max-[700px]:grid-cols-1">
+        <aside className="sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto max-[700px]:static max-[700px]:max-h-none">
+          <TranscriptPanel
+            videoRef={videoRef}
+            sourceUrl={transcriptUrl}
+            transcript={transcript}
+            onTranscript={setTranscript}
+            autoLoad
+            transcriptWindow={transcriptWindow}
+            timeOffsetMs={transcriptWindow?.startMs ?? 0}
+            tall
+            onTrim={(trim) => useEditor.getState().setSegments([{ start: trim.startMs / 1000, end: trim.endMs / 1000 }])}
+          />
+        </aside>
+
         <div className="flex flex-col gap-3">
           <div
             className="relative bg-black rounded-md overflow-hidden select-none"
@@ -330,17 +491,22 @@ function EditorBody({
               className="absolute inset-0 w-full h-full"
               onClick={togglePlay}
             />
-            <CropOverlay activeKey={activeKey} srcW={src.w} srcH={src.h} />
+          <CropOverlay activeKey={activeKey} srcW={src.w} srcH={src.h} />
           </div>
-          <TrimTimeline duration={ingest.duration} onSeek={seek} />
+          <Timeline
+            duration={ingest.duration}
+            sourceUrl={ingest.sourceUrl}
+            selected={selected}
+            onSelect={setSelected}
+            onSeek={seek}
+            playing={playing}
+            onTogglePlay={togglePlay}
+            loop={loop}
+            onToggleLoop={() => setLoop((l) => !l)}
+            rate={rate}
+            onRate={setRate}
+          />
           <div className="flex items-center gap-2 flex-wrap text-[13px] text-muted">
-            <Button variant="secondary" size="sm" onClick={togglePlay}>
-              <PlayLabel />
-            </Button>
-            <label className="flex items-center gap-1.5">
-              <input type="checkbox" checked={loop} onChange={(e) => setLoop(e.target.checked)} />
-              Loop (L)
-            </label>
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
@@ -348,7 +514,8 @@ function EditorBody({
                 aria-label={muted ? "Ativar som" : "Silenciar"}
                 className="w-6 text-center hover:text-text"
               >
-                {muted || volume === 0 ? "🔇" : volume < 0.5 ? "🔉" : "🔊"}
+                <Icon name={muted || volume === 0 ? "volume-off" : "volume"} width={16} height={16} />
+
               </button>
               <input
                 type="range"
@@ -365,19 +532,33 @@ function EditorBody({
               />
               <span className="w-9 tabular-nums">{Math.round((muted ? 0 : volume) * 100)}%</span>
             </div>
-            <span className="ml-auto">
-              Espaço play · I/O início/fim · ←/→ quadro (Shift: 1 s) · duplo clique no crop centraliza
-            </span>
+            <button
+              type="button"
+              onClick={() => setCaptionsEnabled((v) => !v)}
+              disabled={!transcript}
+              aria-pressed={captionsEnabled}
+              aria-label={!transcript ? "Carregue a transcrição para ativar as legendas" : captionsEnabled ? "Desativar legendas" : "Ativar legendas"}
+              title={!transcript ? "Carregue a transcrição primeiro" : captionsEnabled ? "Desativar legendas" : "Ativar legendas"}
+              className={`inline-flex items-center gap-1.5 rounded-sm px-2 py-1.5 transition-colors ${captionsEnabled ? "bg-accent text-accent-fg" : "text-muted hover:bg-surface-2 hover:text-fg"}`}
+            >
+              <Icon name="subtitles" width={16} height={16} />
+              <span className="text-xs">Legendas</span>
+            </button>
           </div>
         </div>
 
-        <div className="flex flex-col gap-4">
-          <VerticalPreview videoRef={videoRef} srcW={src.w} srcH={src.h} />
+        <div className="flex flex-col gap-4 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto max-[1200px]:col-span-2 max-[700px]:col-span-1 max-[700px]:static max-[700px]:max-h-none">
+          <VerticalPreview videoRef={videoRef} srcW={src.w} srcH={src.h} transcript={editorTranscript} captionsEnabled={captionsEnabled} />
           <LayoutPicker active={activeKey} onActive={setActive} />
+          <KeyframeControls />
+          <MotionControls videoRef={videoRef} sourceUrl={ingest.sourceUrl} srcW={src.w} srcH={src.h} />
           <ExportPanel
             clipId={ingest.clipId}
+            persist={ingest.persist}
             userId={userId}
             sourceUrl={ingest.sourceUrl}
+            transcript={editorTranscript}
+            captionsEnabled={captionsEnabled}
             fileName={`${(ingest.channel ?? "clip").replace(/\W+/g, "_")}-${title.slice(0, 40).replace(/\W+/g, "_")}.mp4`}
             onExported={() => setExported(true)}
           />
@@ -388,21 +569,6 @@ function EditorBody({
   );
 }
 
-function PlayLabel() {
-  const playing = useEditor((s) => s.playing);
-  return playing ? (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-label="Pausar">
-      <rect x="6" y="5" width="4" height="14" rx="1" />
-      <rect x="14" y="5" width="4" height="14" rx="1" />
-    </svg>
-  ) : (
-    <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-label="Reproduzir">
-      <path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.5-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" />
-    </svg>
-  );
-}
-
-/** Retângulo de crop arrastável sobre o player (mover + redimensionar travado). */
 function CropOverlay({
   activeKey,
   srcW,
@@ -412,8 +578,12 @@ function CropOverlay({
   srcW: number;
   srcH: number;
 }) {
-  const layout = useEditor((s) => s.layout);
-  const crops = useEditor((s) => s.crops);
+  const layout = useFraming("layout");
+  // Crops visíveis no instante atual (interpolados quando há keyframes).
+  const baseCrops = useFraming("crops");
+  const keyframes = useFraming("keyframes");
+  const currentTime = useEditor((s) => s.currentTime);
+  const crops = cropsAt({ crops: baseCrops, keyframes }, currentTime);
   const setCrop = useEditor((s) => s.setCrop);
   const boxRef = useRef<HTMLDivElement>(null);
 
@@ -422,7 +592,7 @@ function CropOverlay({
     e.stopPropagation();
     const box = boxRef.current?.getBoundingClientRect();
     if (!box) return;
-    const start = { x: e.clientX, y: e.clientY, r: useEditor.getState().crops[key] };
+    const start = { x: e.clientX, y: e.clientY, r: cropsAt(useEditor.getState().activeFraming(), useEditor.getState().currentTime)[key] };
     const asp = slotAspect(layout, key);
     const onMove = (ev: PointerEvent) => {
       const dx = (ev.clientX - start.x) / box.width;
@@ -494,10 +664,14 @@ function VerticalPreview({
   videoRef,
   srcW,
   srcH,
+  transcript,
+  captionsEnabled,
 }: {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   srcW: number;
   srcH: number;
+  transcript: Transcript | null;
+  captionsEnabled: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const PW = 270;
@@ -511,7 +685,7 @@ function VerticalPreview({
     let raf = 0;
     const draw = () => {
       const v = videoRef.current;
-      const { layout, camPos, crops } = useEditor.getState();
+      const { layout, camPos, crops } = framingAt(useEditor.getState(), v?.currentTime ?? 0);
       g.fillStyle = "#000";
       g.fillRect(0, 0, PW, PH);
       if (v && v.readyState >= 2) {
@@ -519,12 +693,46 @@ function VerticalPreview({
           const p = cropToPixels(crops[s.key], v.videoWidth || srcW, v.videoHeight || srcH);
           g.drawImage(v, p.sx, p.sy, p.sw, p.sh, s.dx * k, s.dy * k, s.dw * k, s.dh * k);
         }
+
+        if (captionsEnabled && transcript) {
+          const now = (v.currentTime ?? 0) * 1000;
+          const line = transcript.lines.find((item, index) => {
+            const nextStart = transcript.lines[index + 1]?.startMs ?? Infinity;
+            return now >= item.startMs && (now < item.endMs || now < nextStart);
+          });
+          if (line) {
+            g.font = "600 12px sans-serif";
+            g.textAlign = "center";
+            g.textBaseline = "middle";
+            const maxWidth = PW - 28;
+            const words = line.text.split(/\s+/);
+            const rows: string[] = [];
+            let row = "";
+            for (const word of words) {
+              const candidate = row ? `${row} ${word}` : word;
+              if (row && g.measureText(candidate).width > maxWidth) {
+                rows.push(row);
+                row = word;
+              } else {
+                row = candidate;
+              }
+            }
+            if (row) rows.push(row);
+            const lineHeight = 16;
+            const boxHeight = rows.length * lineHeight + 12;
+            const boxY = PH - 34 - boxHeight;
+            g.fillStyle = "rgba(0, 0, 0, 0.82)";
+            g.fillRect(10, boxY, PW - 20, boxHeight);
+            g.fillStyle = "#fff";
+            rows.forEach((row, index) => g.fillText(row, PW / 2, boxY + 6 + index * lineHeight + lineHeight / 2));
+          }
+        }
       }
       raf = requestAnimationFrame(draw);
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [videoRef, srcW, srcH, PH]);
+  }, [videoRef, srcW, srcH, PH, transcript, captionsEnabled]);
 
   return (
     <canvas
@@ -537,75 +745,154 @@ function VerticalPreview({
   );
 }
 
-/** Barra de trim com alças de início/fim e playhead; clique busca. */
-function TrimTimeline({
-  duration,
-  onSeek,
-}: {
-  duration: number;
-  onSeek: (t: number) => void;
-}) {
-  const trim = useEditor((s) => s.trim);
+/** Liga/desliga o keyframe de crop no instante atual da faixa ativa. */
+function KeyframeControls() {
+  const keyframes = useFraming("keyframes");
   const currentTime = useEditor((s) => s.currentTime);
-  const setTrim = useEditor((s) => s.setTrim);
-  const barRef = useRef<HTMLDivElement>(null);
-  const pct = (t: number) => `${(duration ? t / duration : 0) * 100}%`;
+  const addKeyframe = useEditor((s) => s.addKeyframe);
+  const removeKeyframe = useEditor((s) => s.removeKeyframe);
+  const clearKeyframes = useEditor((s) => s.clearKeyframes);
+  const here = keyframeIndexAt(keyframes, currentTime) >= 0;
+  const count = keyframes?.length ?? 0;
+  return (
+    <div className="flex flex-col gap-2">
+      <span className="text-[13px] text-muted">Keyframes de enquadramento</span>
+      <div className="flex gap-2 items-center">
+        <Button size="sm" variant={here ? "primary" : "secondary"} onClick={here ? removeKeyframe : addKeyframe}>
+          {here ? "Remover keyframe" : "Adicionar keyframe"}
+        </Button>
+        {count > 0 && (
+          <Button size="sm" variant="ghost" onClick={clearKeyframes}>
+            Limpar
+          </Button>
+        )}
+        <span className="text-[12px] text-muted">
+          {count === 0
+            ? "Crop fixo no clipe todo."
+            : `${count} keyframe${count > 1 ? "s" : ""} · mover o crop grava neste instante`}
+        </span>
+      </div>
+    </div>
+  );
+}
 
-  const timeAt = (clientX: number) => {
-    const b = barRef.current?.getBoundingClientRect();
-    if (!b) return 0;
-    return Math.max(0, Math.min(1, (clientX - b.left) / b.width)) * duration;
+type FaceDetectorCtor = new (o?: { fastMode?: boolean }) => {
+  detect: (src: CanvasImageSource) => Promise<{ boundingBox: DOMRectReadOnly }[]>;
+};
+
+/** Automações: presets, zoom nos picos de áudio e detecção da webcam. */
+function MotionControls({
+  videoRef,
+  sourceUrl,
+  srcW,
+  srcH,
+}: {
+  videoRef: React.RefObject<HTMLVideoElement | null>;
+  sourceUrl: string;
+  srcW: number;
+  srcH: number;
+}) {
+  const applyPreset = useEditor((s) => s.applyPreset);
+  const autoZoomPeaks = useEditor((s) => s.autoZoomPeaks);
+  const setCamRect = useEditor((s) => s.setCamRect);
+  const [intensity, setIntensity] = useState(0.5);
+  const [busy, setBusy] = useState<"" | "audio" | "cam">("");
+  const [msg, setMsg] = useState("");
+  const env = useRef<{ url: string; env: number[] } | null>(null);
+  const HOP = 0.05;
+
+  const zoomPeaks = async () => {
+    setBusy("audio");
+    setMsg("");
+    try {
+      if (env.current?.url !== sourceUrl) {
+        const buf = await (await fetch(sourceUrl)).arrayBuffer();
+        const ctx = new AudioContext();
+        const audio = await ctx.decodeAudioData(buf);
+        void ctx.close();
+        const mono = new Float32Array(audio.length);
+        for (let c = 0; c < audio.numberOfChannels; c++) {
+          const ch = audio.getChannelData(c);
+          for (let i = 0; i < ch.length; i++) mono[i]! += ch[i]! / audio.numberOfChannels;
+        }
+        env.current = { url: sourceUrl, env: rmsEnvelope(mono, audio.sampleRate, HOP) };
+      }
+      const peaks = detectPeaks(env.current.env, { hop: HOP, intensity, within: useEditor.getState().segments });
+      autoZoomPeaks(peaks);
+      setMsg(peaks.length ? `${peaks.length} pico${peaks.length > 1 ? "s" : ""} com zoom.` : "Nenhum pico encontrado; aumente a intensidade.");
+    } catch {
+      setMsg("Não foi possível analisar o áudio.");
+    } finally {
+      setBusy("");
+    }
   };
 
-  function dragHandle(e: React.PointerEvent, which: "start" | "end") {
-    e.preventDefault();
-    e.stopPropagation();
-    const onMove = (ev: PointerEvent) => {
-      const t = timeAt(ev.clientX);
-      const cur = useEditor.getState().trim;
-      if (which === "start") setTrim(t, cur.end);
-      else setTrim(cur.start, t);
-      onSeek(t);
-    };
-    const onUp = () => {
-      window.removeEventListener("pointermove", onMove);
-      window.removeEventListener("pointerup", onUp);
-    };
-    window.addEventListener("pointermove", onMove);
-    window.addEventListener("pointerup", onUp);
-  }
+  const detectCam = async () => {
+    const FD = (window as unknown as { FaceDetector?: FaceDetectorCtor }).FaceDetector;
+    const v = videoRef.current;
+    if (!FD || !v) {
+      setMsg("Detecção de rosto indisponível neste navegador.");
+      return;
+    }
+    setBusy("cam");
+    setMsg("");
+    const back = v.currentTime;
+    try {
+      const det = new FD({ fastMode: true });
+      const canvas = document.createElement("canvas");
+      canvas.width = srcW;
+      canvas.height = srcH;
+      const g = canvas.getContext("2d")!;
+      const faces = [];
+      const dur = v.duration || 0;
+      for (let i = 1; i <= 8; i++) {
+        v.currentTime = (dur * i) / 9;
+        await new Promise((r) => v.addEventListener("seeked", r, { once: true }));
+        g.drawImage(v, 0, 0, srcW, srcH);
+        const found = await det.detect(canvas);
+        // O streamer costuma ser o maior rosto do frame.
+        const b = found.map((f) => f.boundingBox).sort((a, z) => z.width * z.height - a.width * a.height)[0];
+        if (b) faces.push({ x: b.x / srcW, y: b.y / srcH, w: b.width / srcW, h: b.height / srcH });
+      }
+      const rect = camRectFromFaces(faces, srcW, srcH);
+      if (rect) setCamRect(rect);
+      setMsg(rect ? "Webcam enquadrada." : "Nenhum rosto encontrado.");
+    } catch {
+      setMsg("Falha ao detectar a webcam.");
+    } finally {
+      v.currentTime = back;
+      setBusy("");
+    }
+  };
 
   return (
-    <div className="flex flex-col gap-1">
-      <div
-        ref={barRef}
-        className="relative h-10 rounded-sm bg-border/60 cursor-pointer"
-        onPointerDown={(e) => onSeek(timeAt(e.clientX))}
-      >
-        <div
-          className="absolute top-0 bottom-0 bg-accent/30 border-y-2 border-accent"
-          style={{ left: pct(trim.start), width: pct(trim.end - trim.start) }}
-        />
-        {(["start", "end"] as const).map((w) => (
-          <div
-            key={w}
-            className="absolute top-0 bottom-0 w-2.5 -ml-[5px] bg-accent rounded-sm cursor-ew-resize"
-            style={{ left: pct(trim[w]) }}
-            onPointerDown={(e) => dragHandle(e, w)}
-          />
+    <div className="flex flex-col gap-2">
+      <span className="text-[13px] text-muted">Movimento automático</span>
+      <div className="flex flex-wrap gap-2">
+        {MOTION_PRESETS.map((p) => (
+          <Button key={p.id} size="sm" variant="secondary" onClick={() => applyPreset(p.id)}>
+            {p.label}
+          </Button>
         ))}
-        <div
-          className="absolute -top-1 -bottom-1 w-0.5 bg-fg pointer-events-none"
-          style={{ left: pct(currentTime) }}
+      </div>
+      <div className="flex flex-wrap gap-2 items-center text-[12px] text-muted">
+        <Button size="sm" variant="secondary" disabled={!!busy} onClick={zoomPeaks}>
+          {busy === "audio" ? "Analisando…" : "Zoom nos picos de áudio"}
+        </Button>
+        Intensidade
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.05}
+          value={intensity}
+          onChange={(e) => setIntensity(+e.target.value)}
         />
+        <Button size="sm" variant="secondary" disabled={!!busy} onClick={detectCam}>
+          {busy === "cam" ? "Detectando…" : "Detectar webcam"}
+        </Button>
       </div>
-      <div className="flex justify-between text-[12px] text-muted tabular-nums">
-        <span>Início {fmt(trim.start)}</span>
-        <span>
-          {fmt(currentTime)} · duração do corte {(trim.end - trim.start).toFixed(1)} s
-        </span>
-        <span>Fim {fmt(trim.end)}</span>
-      </div>
+      {msg && <span className="text-[12px] text-muted">{msg}</span>}
     </div>
   );
 }
@@ -617,32 +904,34 @@ function LayoutPicker({
   active: SlotKey;
   onActive: (k: SlotKey) => void;
 }) {
-  const layout = useEditor((s) => s.layout);
-  const setLayout = useEditor((s) => s.setLayout);
-  const camPos = useEditor((s) => s.camPos);
+  const layout = useFraming("layout");
+  const activeTrack = useEditor((s) => s.activeTrack);
+  const setActiveTrack = useEditor((s) => s.setActiveTrack);
+  const addTrack = useEditor((s) => s.addTrack);
+  const camPos = useFraming("camPos");
   const setCamPos = useEditor((s) => s.setCamPos);
-  const opts: Array<{ value: Layout; label: string }> = [
-    { value: "full", label: "Tela cheia" },
-    { value: "cam_game", label: "Cam + jogo" },
-  ];
+  const onCam = activeTrack > 0;
   return (
     <div className="flex flex-col gap-2">
       <span className="text-[13px] text-muted">Layout</span>
       <div className="flex gap-2">
-        {opts.map((o) => (
-          <Button
-            key={o.value}
-            size="sm"
-            variant={layout === o.value ? "primary" : "secondary"}
-            onClick={() => setLayout(o.value)}
-          >
-            {o.label}
-          </Button>
-        ))}
+        <Button size="sm" variant={!onCam ? "primary" : "secondary"} onClick={() => setActiveTrack(0)}>
+          Tela cheia
+        </Button>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            addTrack(useEditor.getState().currentTime);
+            onActive("cam");
+          }}
+        >
+          Adicionar câmera
+        </Button>
       </div>
-      {layout === "cam_game" && (
+      {onCam && layout === "cam_game" && (
         <div className="flex gap-2 items-center text-[13px] text-muted">
-          Cam:
+          Disposição:
           {(["top", "bottom"] as const).map((p) => (
             <Button
               key={p}
@@ -650,12 +939,12 @@ function LayoutPicker({
               variant={camPos === p ? "primary" : "ghost"}
               onClick={() => setCamPos(p)}
             >
-              {p === "top" ? "Em cima" : "Embaixo"}
+              {p === "top" ? "Cam em cima" : "Cam embaixo"}
             </Button>
           ))}
         </div>
       )}
-      {layout === "cam_game" && (
+      {onCam && layout === "cam_game" && (
         <div className="flex gap-2 items-center text-[13px] text-muted">
           Editando:
           {(["game", "cam"] as const).map((k) => (
