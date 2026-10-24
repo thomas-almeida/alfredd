@@ -255,11 +255,13 @@ export function Sidebar({
                           {s.name.charAt(0).toUpperCase()}
                         </span>
                       )}
-                      <span
-                        className={cn(
-                          "absolute -right-0.5 -bottom-0.5 w-2 h-2 rounded-full ring-2 ring-bg",
-                          youtube ? "bg-danger" : "bg-info",
-                        )}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={`/${youtube ? "youtube" : "twitch"}.svg`}
+                        alt=""
+                        width={11}
+                        height={11}
+                        className="absolute -right-1 -bottom-1 h-[11px] w-[11px] rounded-full bg-bg p-px object-contain"
                         aria-hidden
                       />
                     </span>
