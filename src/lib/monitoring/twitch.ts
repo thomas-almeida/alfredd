@@ -81,7 +81,17 @@ export async function collectTwitchAlerts(windowMinutes = 30) {
       for (const channel of (channels ?? []) as ChannelRow[]) {
         const monitoring = matching.find((row) => row.user_id === channel.user_id);
         if (!monitoring || (channel.kind === "email" ? !channel.address : !channel.telegram_chat_id)) continue;
-        const dedupeKey = `${monitoring.id}:${clip.id}:${channel.kind}`;
+        // Um clipe que casa com jogo e criador ainda deve gerar um único alerta
+        // por usuário e canal, não um alerta por regra coincidente.
+        const dedupeKey = `${channel.user_id}:${clip.id}:${channel.kind}`;
+        const { data: priorDelivery } = await admin.from("notification_deliveries")
+          .select("id,status")
+          .eq("user_id", channel.user_id)
+          .eq("clip_id", saved.id)
+          .eq("channel_kind", channel.kind)
+          .in("status", ["pending", "sent"])
+          .maybeSingle();
+        if (priorDelivery) continue;
         const { data: delivery } = await admin.from("notification_deliveries").upsert({
           user_id: channel.user_id,
           monitoring_id: monitoring.id,
