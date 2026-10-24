@@ -86,7 +86,7 @@ export function SearchBox({
             lg ? "text-base" : sm ? "text-[13px]" : "text-[0.875rem]",
           )}
           placeholder={
-            sm ? "Buscar ou colar link da Twitch…" : "Busque um jogo, streamer ou cole um link da Twitch…"
+            sm ? "Buscar ou colar link da Twitch/Youtube…" : "Experimente: GTA VI"
           }
           value={q}
           onChange={(e) => {
@@ -114,7 +114,7 @@ export function SearchBox({
               aria-hidden
             />
           )}
-          {loading ? "Buscando" : sm ? "Buscar" : "Explorar"}
+          {loading ? "Buscando" : sm ? "Buscar" : "Encontrar Conteúdo"}
         </button>
       </form>
       {error && !sm && <p className="text-[13px] text-danger mt-2">{error}</p>}

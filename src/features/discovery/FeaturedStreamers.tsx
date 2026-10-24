@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { twitch } from "@/lib/twitch/client";
+import { yt, type YtChannel } from "@/lib/youtube/api";
 import { RecommendedClips } from "@/features/clips/RecommendedClips";
 import type { ClipCardData } from "@/features/clips/ClipCard";
 
@@ -9,15 +10,23 @@ const CLIPS_PER_CHANNEL = 3;
 /** Streamers fixados na home: atalho para a página de clipes de cada canal. */
 const STREAMERS = [
   { login: "alanzoka", tag: "Variedades", color: "#9147ff" },
-  { login: "flowpodcast", tag: "Just Chatting", color: "#f5a623" },
-  { login: "gaules", tag: "CS2 · Tribo", color: "#f5a623" },
   { login: "kaicenat", tag: "Just Chatting", color: "#5b9dff" },
   { login: "coringa", tag: "Free Fire · IRL", color: "#b4f34a" },
   { login: "frttt", tag: "Free Fire · IRL", color: "#b4f34a" },
-
+  { login: "coreano", tag: "Free Fire · IRL", color: "#b4f34a" },
+  { login: "yoda", tag: "Free Fire · IRL", color: "#b4f34a" },
+  { login: "brino", tag: "Free Fire · IRL", color: "#b4f34a" },
+  { login: "gaules", tag: "Free Fire · IRL", color: "#b4f34a" }
 ];
 
 type Streamer = { id: string; login: string; name: string; avatar: string };
+type FeaturedCreator = {
+  key: string;
+  name: string;
+  avatar: string | null;
+  platform: "twitch" | "youtube";
+  href: string;
+};
 
 async function loadUsers(): Promise<Map<string, Streamer>> {
   try {
@@ -30,6 +39,37 @@ async function loadUsers(): Promise<Map<string, Streamer>> {
     );
   } catch {
     return new Map();
+  }
+}
+
+async function loadYouTubeChannels(): Promise<FeaturedCreator[]> {
+  const handles = ["podpah", "einerdtv", "brksedu", "funkyblackcat", "peteraqui", "gameplayrj", "mrbeast", "einerd", "hayashixpg"];
+  try {
+    const channels = await Promise.all(
+      handles.map(async (handle) => {
+        try {
+          const result = await yt<{ items: YtChannel[] }>("channels", {
+            part: "snippet",
+            forHandle: `@${handle}`,
+          });
+          const channel = result.items?.[0];
+          if (!channel) return null;
+          const thumbnails = channel.snippet.thumbnails;
+          return {
+            key: `youtube:${channel.id}`,
+            name: channel.snippet.title,
+            avatar: thumbnails?.high?.url ?? thumbnails?.medium?.url ?? thumbnails?.default?.url ?? null,
+            platform: "youtube" as const,
+            href: `/youtube?channel=${encodeURIComponent(channel.id)}`,
+          };
+        } catch {
+          return null;
+        }
+      }),
+    );
+    return channels.filter((channel): channel is NonNullable<typeof channel> => channel !== null);
+  } catch {
+    return [];
   }
 }
 
@@ -68,54 +108,67 @@ async function loadRecentClips(users: Streamer[]): Promise<ClipCardData[]> {
 
 export async function FeaturedStreamers() {
   const users = await loadUsers();
+  const youtubeChannels = await loadYouTubeChannels();
   const clips = await loadRecentClips([...users.values()]);
+  const creators: FeaturedCreator[] = [
+    ...STREAMERS.map((streamer) => {
+      const user = users.get(streamer.login);
+      return {
+        key: `twitch:${streamer.login}`,
+        name: user?.name ?? streamer.login,
+        avatar: user?.avatar ?? null,
+        platform: "twitch" as const,
+        href: `/streamers/${streamer.login}`,
+      };
+    }),
+    ...youtubeChannels,
+  ];
+  const rows = [
+    creators.filter((_, index) => index % 2 === 0),
+    creators.filter((_, index) => index % 2 === 1),
+  ];
+  const renderCreator = (creator: FeaturedCreator, index: number) => (
+    <Link
+      key={`${creator.key}-${index}`}
+      href={creator.href}
+      className="group flex w-56 shrink-0 items-center gap-3 rounded-xl border border-border bg-surface/80 p-3 shadow-sm transition hover:-translate-y-1 hover:border-accent/60 hover:bg-surface-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent"
+      aria-label={`${creator.name} — ${creator.platform === "twitch" ? "Twitch" : "YouTube"}`}
+    >
+      {creator.avatar ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={creator.avatar} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover ring-2 ring-border transition group-hover:ring-accent" />
+      ) : (
+        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-surface-2 text-xl font-bold text-accent ring-2 ring-border">
+          {creator.name[0]?.toUpperCase() ?? "?"}
+        </span>
+      )}
+      <span className="min-w-0">
+        <span className="block truncate text-sm font-semibold text-fg">{creator.name}</span>
+        <span className="mt-1 inline-flex items-center gap-1 text-[11px] text-muted">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={creator.platform === "twitch" ? "/twitch.svg" : "/youtube.svg"} alt="" className="h-3.5 w-3.5 object-contain" />
+          {creator.platform === "twitch" ? "Twitch" : "YouTube"}
+        </span>
+      </span>
+    </Link>
+  );
 
   return (
-    <section className="mt-4 mx-auto max-w-[1080px]">
+    <section className="relative mt-4 w-full max-w-full overflow-hidden">
       <div className="text-center mb-5">
-        <h2 className="text-2xl font-bold">Streamers em destaque</h2>
+        <h2 className="text-2xl font-bold">Criadores em Destaque</h2>
         <p className="text-muted text-[13px] mt-2">
-          Clique e veja os melhores clipes do canal.
+          Descubra canais da Twitch e do YouTube para encontrar o próximo corte.
         </p>
       </div>
-      <div className="flex justify-center items-center -space-x-4">
-        {STREAMERS.map((s) => {
-          const u = users.get(s.login);
-          const name = u?.name ?? s.login;
-          return (
-            <Link
-              key={s.login}
-              href={`/streamers/${s.login}`}
-              aria-label={name}
-              className="group relative hover:z-10 focus-visible:z-10"
-            >
-              <span
-                role="tooltip"
-                className="pointer-events-none absolute bottom-full left-1/2 mb-2 -translate-x-1/2 translate-y-1 whitespace-nowrap rounded-md bg-surface-2 border border-border px-2.5 py-1 text-xs font-semibold shadow-lg opacity-0 transition duration-200 group-hover:opacity-100 group-hover:translate-y-0 group-focus-visible:opacity-100 group-focus-visible:translate-y-0"
-              >
-                {name}
-                <span className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-border" />
-              </span>
-              <div className="flex justify-center">
-                <div className="">
-                  {u?.avatar ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={u.avatar}
-                      alt=""
-                      className="relative w-30 h-30 rounded-lg object-cover border-[3px] border-surface transition-transform duration-300 group-hover:scale-105 shadow-xl hover:scale-110"
-                    />
-                  ) : (
-                    <div className="relative w-30 h-30 rounded-lg bg-surface-2 border-[3px] border-surface flex items-center justify-center text-2xl font-bold">
-                      {name[0]?.toUpperCase()}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </Link>
-          );
-        })}
+      <div className="relative flex flex-col gap-3 w-full py-2 before:pointer-events-none before:absolute before:inset-y-0 before:left-0 before:z-10 before:w-24 before:bg-gradient-to-r before:from-bg before:to-transparent after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:z-10 after:w-24 after:bg-gradient-to-l after:from-bg after:to-transparent">
+        {rows.map((row, rowIndex) => (
+          <div key={rowIndex} className={`featured-creators-track flex w-max gap-4 px-4 hover:[animation-play-state:paused] ${rowIndex === 1 ? "featured-creators-track-reverse" : ""}`}>
+            {row.map(renderCreator)}
+          </div>
+        ))}
       </div>
+      <style>{`@keyframes featured-creators-scroll { from { transform: translateX(0); } to { transform: translateX(-24%); } } @keyframes featured-creators-scroll-reverse { from { transform: translateX(-24%); } to { transform: translateX(0); } } .featured-creators-track { animation: featured-creators-scroll 22.4s ease-in-out infinite alternate; } .featured-creators-track-reverse { animation-name: featured-creators-scroll-reverse; animation-duration: 25.6s; } @media (prefers-reduced-motion: reduce) { .featured-creators-track { animation: none; } }`}</style>
       {clips.length > 0 && (
         <div className="mt-8 text-center">
           <div className="py-8">

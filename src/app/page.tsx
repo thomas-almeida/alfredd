@@ -22,39 +22,15 @@ export default async function HomePage() {
   return (
     <AppShell>
       <section className="py-12 pb-8 max-w-[760px] mx-auto text-center flex flex-col items-center">
-        <Badge tone="accent">Radar de Clipes</Badge>
-        <h1 className="text-[clamp(1.9rem,4vw,3rem)] font-bold tracking-tight mt-4">
+        <Badge tone="accent">Seu Mordomo de Clipes</Badge>
+        <h1 className="text-6xl font-thin tracking-tighter px-2 mt-4">
           Descubra os melhores momentos antes que viralizem.
         </h1>
         <p className="text-muted text-base mt-4 max-w-[60ch]">
-          Encontre clipes relevantes de jogos e streamers, compare desempenho
-          com o ClipScore, organize sua biblioteca e seja avisado de novas
-          oportunidades. Explore sem precisar criar conta.
+          Encontre clipes relevantes dos criadores e jogos que estão em alto, compare desempenho, organize sua biblioteca e faça cortes antes da concorrência
         </p>
         <div className="mt-8 w-full flex justify-center">
           <SearchBox size="lg" />
-        </div>
-
-        <div className="flex items-center justify-center gap-3 mt-6 flex-wrap">
-          <span className="text-[13px] text-subtle">Comece por</span>
-          <div className="flex gap-2 flex-wrap">
-            {destaques.map((d) => (
-              <Link
-                key={d.nome}
-                href={d.href}
-                className="inline-flex items-center gap-2 px-3 py-2 border border-border rounded-full bg-surface text-[13px] text-fg hover:border-border-strong hover:bg-surface-2"
-              >
-                <span
-                  className={cn(
-                    "w-[7px] h-[7px] rounded-full",
-                    d.tipo === "streamer" ? "bg-info" : "bg-accent",
-                  )}
-                  aria-hidden
-                />
-                {d.nome}
-              </Link>
-            ))}
-          </div>
         </div>
       </section>
 
