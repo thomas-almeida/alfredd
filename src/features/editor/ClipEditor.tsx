@@ -1019,6 +1019,8 @@ function MotionControls({
 function FocusLayoutPicker({ srcW, srcH }: { srcW: number; srcH: number }) {
   const panes = useEditor((s) => s.composition);
   const setComposition = useEditor((s) => s.setComposition);
+  const addTrack = useEditor((s) => s.addTrack);
+  const currentTime = useEditor((s) => s.currentTime);
   const count = panes?.length ?? 1;
   const current = count === 4 ? "grid_2x2" : count === 2
     ? (panes?.[0]?.destination.w === 0.5 ? "split_vertical" : "split_horizontal")
@@ -1039,6 +1041,16 @@ function FocusLayoutPicker({ srcW, srcH }: { srcW: number; srcH: number }) {
             {label}
           </Button>
         ))}
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={() => {
+            if (panes?.length) setComposition("full", srcW, srcH);
+            addTrack(currentTime);
+          }}
+        >
+          Adicionar webcam
+        </Button>
       </div>
     </div>
   );
