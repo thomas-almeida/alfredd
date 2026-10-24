@@ -1,1 +1,3 @@
 # O núcleo usa somente a biblioteca padrão do Python 3.11+.
+# Dependência usada pelo proxy de mídia do YouTube.
+yt-dlp>=2025.1.0

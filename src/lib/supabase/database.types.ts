@@ -123,6 +123,72 @@ type SubscriptionsRow = {
   updated_at: string;
 }
 
+type YtEngagementSnapshotsRow = {
+  id: number;
+  kind: "video" | "channel";
+  target_id: string;
+  er: number | null;
+  views: number | null;
+  likes: number | null;
+  comments: number | null;
+  subscribers: number | null;
+  payload: Json;
+  created_at: string;
+}
+
+type YoutubeFavoritesRow = {
+  id: string;
+  user_id: string;
+  channel_id: string;
+  title: string;
+  handle: string | null;
+  thumbnail_url: string | null;
+  created_at: string;
+};
+
+type TranscriptsRow = {
+  source_key: string;
+  platform: string;
+  source: Json;
+  method: "youtube_asr" | "youtube_manual" | "whisper";
+  language: string;
+  duration_ms: number;
+  words: Json;
+  lines: Json;
+  chunks: Json;
+  created_at: string;
+};
+
+type TranscriptLinesRow = {
+  source_key: string;
+  line_index: number;
+  start_ms: number;
+  end_ms: number;
+  text: string;
+};
+
+type TranscriptUsageRow = {
+  id: string;
+  user_id: string;
+  kind: "transcript" | "highlights";
+  created_at: string;
+};
+
+type YoutubeSavedVideosRow = {
+  id: string;
+  user_id: string;
+  video_id: string;
+  title: string;
+  channel_title: string | null;
+  thumbnail_url: string | null;
+  duration_ms: number | null;
+  start_ms: number | null;
+  end_ms: number | null;
+  clip_text: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 type Table<Row, Insert = Partial<Row>, Update = Partial<Row>> = {
   Row: Row;
   Insert: Insert;
@@ -143,6 +209,12 @@ export interface Database {
       clip_projects: Table<ClipProjectsRow>;
       renders: Table<RendersRow>;
       channel_presets: Table<ChannelPresetsRow>;
+      yt_engagement_snapshots: Table<YtEngagementSnapshotsRow>;
+      youtube_favorites: Table<YoutubeFavoritesRow>;
+      transcripts: Table<TranscriptsRow>;
+      transcript_lines: Table<TranscriptLinesRow>;
+      transcript_usage: Table<TranscriptUsageRow>;
+      youtube_saved_videos: Table<YoutubeSavedVideosRow>;
     };
     Views: Record<string, never>;
     Functions: {
@@ -166,6 +238,10 @@ export interface Database {
       set_clip_status: {
         Args: { p_clip_id: string; p_status: ClipStatus };
         Returns: undefined;
+      };
+      claim_transcript_quota: {
+        Args: { p_user_id: string; p_kind: "transcript" | "highlights" };
+        Returns: Json;
       };
     };
     Enums: {
