@@ -46,6 +46,7 @@ test("contrato de deploy mantém Vercel e Render separados", async () => {
   const server = await readFile(join(root, "media-worker", "src", "server.js"), "utf8");
   assert.match(server, /--js-runtimes.*deno/);
   assert.match(server, /YOUTUBE_PLAYER_CLIENTS/);
+  assert.match(server, /android_vr/);
   assert.match(server, /player_client=/);
   await assert.rejects(readFile(join(root, "vercel.json")), { code: "ENOENT" });
 });

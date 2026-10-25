@@ -10,7 +10,7 @@ const port = Number(process.env.PORT || 8080);
 const secret = process.env.MEDIA_WORKER_SECRET || "";
 const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
 const ytdlp = process.env.YTDLP_PATH || "yt-dlp";
-const youtubePlayerClients = (process.env.YOUTUBE_PLAYER_CLIENTS || "tv,web_embedded;web_safari,web_embedded;default")
+const youtubePlayerClients = (process.env.YOUTUBE_PLAYER_CLIENTS || "android_vr,tv,web_embedded;tv,web_embedded;web_safari,web_embedded;default")
   .split(";")
   .map((value) => value.trim())
   .filter(Boolean);
