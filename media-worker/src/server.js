@@ -13,6 +13,7 @@ const ytdlp = process.env.YTDLP_PATH || "yt-dlp";
 const ttl = Number(process.env.MEDIA_CACHE_TTL_MS || 30 * 60_000);
 const cacheDir = mkdir(join(tmpdir(), "alfredd-media"), { recursive: true }).then(() => join(tmpdir(), "alfredd-media"));
 const pending = new Map();
+const progress = new Map();
 
 function sendJson(res, status, value) {
   const body = JSON.stringify(value);
@@ -72,17 +73,30 @@ async function youtube(url) {
   const start = url.searchParams.has("start") ? Number(url.searchParams.get("start")) : null;
   const end = url.searchParams.has("end") ? Number(url.searchParams.get("end")) : null;
   if ((start == null) !== (end == null) || (start != null && (!Number.isInteger(start) || !Number.isInteger(end) || end <= start))) throw new Error("invalid_window");
-  return cachedFile(`youtube:${id}:${start}:${end}`, async (file) => {
+  const key = `youtube:${id}:${start}:${end}`;
+  const result = await cachedFile(key, async (file) => {
+    progress.set(key, { status: "resolving" });
     const max = process.env.YOUTUBE_MEDIA_MAX_HEIGHT || "480";
     const format = `bestvideo[ext=mp4][height<=${max}]+bestaudio[ext=m4a]/bestvideo[height<=${max}]+bestaudio/best`;
     const urls = (await run(ytdlp, ["-g", "-f", format, "--no-warnings", `https://www.youtube.com/watch?v=${id}`])).trim().split(/\r?\n/).filter(Boolean);
     if (!urls[0]) throw new Error("yt-dlp não retornou vídeo");
+    progress.set(key, { status: "downloading", processedMs: 0 });
     const seek = start == null ? [] : ["-ss", String(start / 1000), "-t", String((end - start) / 1000)];
     const args = ["-hide_banner", "-loglevel", "error", "-y", ...seek, "-i", urls[0]];
     if (urls[1]) args.push(...seek, "-i", urls[1], "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac"); else args.push("-c", "copy");
     args.push("-movflags", "+faststart", file);
     await run(ffmpeg, args);
   });
+  progress.set(key, { status: "ready", size: result.size });
+  return result;
+}
+function youtubeProgress(url) {
+  const id = url.searchParams.get("videoId");
+  const start = url.searchParams.has("start") ? Number(url.searchParams.get("start")) : null;
+  const end = url.searchParams.has("end") ? Number(url.searchParams.get("end")) : null;
+  if (!id || (start == null) !== (end == null)) return { status: "idle" };
+  const key = `youtube:${id}:${start}:${end}`;
+  return progress.get(key) || { status: pending.has(key) ? "resolving" : "idle" };
 }
 async function twitchVod(url) {
   const id = url.searchParams.get("id");
@@ -128,6 +142,7 @@ async function handle(req, res) {
   if (secret && req.headers.authorization !== `Bearer ${secret}`) return sendJson(res, 401, { error: "unauthorized" });
   if (req.method !== "GET") return sendJson(res, 405, { error: "method_not_allowed" });
   try {
+    if (url.pathname === "/youtube/source" && url.searchParams.get("progress") === "1") return sendJson(res, 200, youtubeProgress(url));
     const media = url.pathname === "/youtube/source" ? await youtube(url) : url.pathname === "/twitch/vod" ? await twitchVod(url) : null;
     if (!media) return sendJson(res, 404, { error: "not_found" });
     if (media.redirect) { res.writeHead(307, { location: media.redirect }); return res.end(); }

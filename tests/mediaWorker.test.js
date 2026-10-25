@@ -32,6 +32,9 @@ test("media-worker expõe healthcheck público e protege a mídia", async () => 
   const unauthorized = await fetch(`http://127.0.0.1:${port}/health`);
   assert.equal(unauthorized.status, 200);
   assert.deepEqual(await unauthorized.json(), { ok: true, service: "media-worker" });
+  const progress = await fetch(`http://127.0.0.1:${port}/youtube/source?videoId=test&start=0&end=1000&progress=1`, { headers: { Authorization: "Bearer regression-secret" } });
+  assert.equal(progress.status, 200);
+  assert.equal((await progress.json()).status, "idle");
   const media = await fetch(`http://127.0.0.1:${port}/youtube/source?videoId=test`);
   assert.equal(media.status, 401);
 });
