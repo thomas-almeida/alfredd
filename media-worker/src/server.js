@@ -10,6 +10,7 @@ const port = Number(process.env.PORT || 8080);
 const secret = process.env.MEDIA_WORKER_SECRET || "";
 const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
 const ytdlp = process.env.YTDLP_PATH || "yt-dlp";
+const deno = process.env.DENO_PATH || (process.platform === "win32" ? "deno" : "/usr/local/bin/deno");
 const youtubePlayerClients = (process.env.YOUTUBE_PLAYER_CLIENTS || "android_vr,tv,web_embedded;tv,web_embedded;web_safari,web_embedded;default")
   .split(";")
   .map((value) => value.trim())
@@ -39,7 +40,7 @@ async function runYtdlp(args) {
   for (const clients of youtubePlayerClients) {
     const extractorArgs = clients === "default" ? [] : ["--extractor-args", `youtube:player_client=${clients}`];
     try {
-      return await run(ytdlp, ["--js-runtimes", "deno:/usr/local/bin/deno", "--remote-components", "ejs:github", ...extractorArgs, ...args]);
+      return await run(ytdlp, ["--js-runtimes", `deno:${deno}`, "--remote-components", "ejs:github", ...extractorArgs, ...args]);
     } catch (error) {
       lastError = error;
       console.warn(`[youtube] extractor client ${clients} failed: ${error.message}`);
