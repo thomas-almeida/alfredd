@@ -1,0 +1,137 @@
+const http = require("node:http");
+const { spawn } = require("node:child_process");
+const { createHash } = require("node:crypto");
+const { createReadStream } = require("node:fs");
+const { mkdir, mkdtemp, rm, stat, writeFile } = require("node:fs/promises");
+const { tmpdir } = require("node:os");
+const { join } = require("node:path");
+
+const port = Number(process.env.PORT || 8080);
+const secret = process.env.MEDIA_WORKER_SECRET || "";
+const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
+const ytdlp = process.env.YTDLP_PATH || "yt-dlp";
+const ttl = Number(process.env.MEDIA_CACHE_TTL_MS || 30 * 60_000);
+const cacheDir = mkdir(join(tmpdir(), "alfredd-media"), { recursive: true }).then(() => join(tmpdir(), "alfredd-media"));
+const pending = new Map();
+
+function sendJson(res, status, value) {
+  const body = JSON.stringify(value);
+  res.writeHead(status, { "content-type": "application/json", "content-length": Buffer.byteLength(body) });
+  res.end(body);
+}
+function run(command, args) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(command, args, { env: process.env });
+    let out = ""; let error = "";
+    child.stdout.on("data", (data) => { out += data.toString(); });
+    child.stderr.on("data", (data) => { error += data.toString(); });
+    child.on("error", (err) => reject(new Error(`${command} não encontrado: ${err.message}`)));
+    child.on("close", (code) => code === 0 ? resolve(out) : reject(new Error(error.trim().slice(-1000) || `${command} falhou`)));
+  });
+}
+function range(value, size) {
+  if (!value) return { start: 0, end: size - 1, status: 200 };
+  const match = /^bytes=(\d+)-(\d*)$/.exec(value);
+  if (!match) return { start: 0, end: size - 1, status: 200 };
+  const start = Number(match[1]);
+  if (start >= size) return { start: size, end: size - 1, status: 416 };
+  return { start, end: Math.min(match[2] ? Number(match[2]) : size - 1, size - 1), status: 206 };
+}
+function streamFile(req, res, file, size) {
+  const part = range(req.headers.range, size);
+  if (part.status === 416) { res.writeHead(416, { "content-range": `bytes */${size}` }); return res.end(); }
+  const headers = { "content-type": "video/mp4", "accept-ranges": "bytes", "content-length": part.end - part.start + 1, "cache-control": "private, max-age=1800" };
+  if (part.status === 206) headers["content-range"] = `bytes ${part.start}-${part.end}/${size}`;
+  res.writeHead(part.status, headers);
+  createReadStream(file, { start: part.start, end: part.end }).pipe(res);
+}
+async function cachedFile(key, create) {
+  const running = pending.get(key);
+  if (running) return running;
+  const task = (async () => {
+    const dir = await cacheDir;
+    const file = join(dir, `${createHash("sha256").update(key).digest("hex")}.mp4`);
+    const old = await stat(file).catch(() => null);
+    if (old?.size && Date.now() - old.mtimeMs < ttl) return { file, size: old.size };
+    await create(file);
+    const info = await stat(file);
+    return { file, size: info.size };
+  })();
+  pending.set(key, task);
+  try { return await task; } finally { pending.delete(key); }
+}
+async function youtube(url) {
+  const id = url.searchParams.get("videoId");
+  if (!id) throw new Error("invalid_video");
+  if (url.searchParams.get("audio") === "0") {
+    const format = `best[ext=mp4][height<=${process.env.YOUTUBE_MEDIA_MAX_HEIGHT || "480"}]/best`;
+    const direct = (await run(ytdlp, ["-g", "-f", format, "--no-warnings", `https://www.youtube.com/watch?v=${id}`])).trim().split(/\r?\n/).find(Boolean);
+    if (!direct) throw new Error("yt-dlp não retornou vídeo");
+    return { redirect: direct };
+  }
+  const start = url.searchParams.has("start") ? Number(url.searchParams.get("start")) : null;
+  const end = url.searchParams.has("end") ? Number(url.searchParams.get("end")) : null;
+  if ((start == null) !== (end == null) || (start != null && (!Number.isInteger(start) || !Number.isInteger(end) || end <= start))) throw new Error("invalid_window");
+  return cachedFile(`youtube:${id}:${start}:${end}`, async (file) => {
+    const max = process.env.YOUTUBE_MEDIA_MAX_HEIGHT || "480";
+    const format = `bestvideo[ext=mp4][height<=${max}]+bestaudio[ext=m4a]/bestvideo[height<=${max}]+bestaudio/best`;
+    const urls = (await run(ytdlp, ["-g", "-f", format, "--no-warnings", `https://www.youtube.com/watch?v=${id}`])).trim().split(/\r?\n/).filter(Boolean);
+    if (!urls[0]) throw new Error("yt-dlp não retornou vídeo");
+    const seek = start == null ? [] : ["-ss", String(start / 1000), "-t", String((end - start) / 1000)];
+    const args = ["-hide_banner", "-loglevel", "error", "-y", ...seek, "-i", urls[0]];
+    if (urls[1]) args.push(...seek, "-i", urls[1], "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac"); else args.push("-c", "copy");
+    args.push("-movflags", "+faststart", file);
+    await run(ffmpeg, args);
+  });
+}
+async function twitchVod(url) {
+  const id = url.searchParams.get("id");
+  const start = Number(url.searchParams.get("start"));
+  const end = Number(url.searchParams.get("end"));
+  if (!id || !Number.isFinite(start) || !Number.isFinite(end) || end <= start) throw new Error("invalid_vod_window");
+  const key = `twitch:${id}:${start}:${end}:${url.searchParams.get("quality") || "source"}:${url.searchParams.get("precise") || "0"}`;
+  return cachedFile(key, async (file) => {
+    const query = `query($id: ID!) { video(id: $id) { lengthSeconds } videoPlaybackAccessToken(id: $id, params: { platform: "web", playerBackend: "mediaplayer", playerType: "site" }) { signature value } }`;
+    const response = await fetch("https://gql.twitch.tv/gql", { method: "POST", headers: { "Client-ID": process.env.TWITCH_WEB_CLIENT_ID || "kimne78kx3ncx6brgo4mv6wki5h1ko", "Content-Type": "text/plain" }, body: JSON.stringify({ query, variables: { id } }) });
+    const body = await response.json();
+    const token = body.data?.videoPlaybackAccessToken;
+    if (!token) throw new Error("Twitch não retornou token da VOD");
+    const playlistUrl = `https://usher.ttvnw.net/vod/${id}.m3u8?${new URLSearchParams({ nauth: token.value, nauthsig: token.signature, allow_source: "true", player: "twitchweb" })}`;
+    const playlistResponse = await fetch(playlistUrl);
+    const lines = (await playlistResponse.text()).split("\n").map((line) => line.trim());
+    const variants = lines.flatMap((line, index) => line.startsWith("#EXT-X-STREAM-INF") && lines[index + 1]?.startsWith("http") ? [{ info: line, url: lines[index + 1] }] : []);
+    const quality = url.searchParams.get("quality");
+    const variant = variants.find((item) => quality && item.info.includes(`NAME="${quality}"`)) || variants[0];
+    if (!variant) throw new Error("VOD sem qualidade disponível");
+    const media = await fetch(variant.url);
+    const base = variant.url.slice(0, variant.url.lastIndexOf("/") + 1);
+    const segments = [];
+    let time = 0; let duration = 0;
+    for (const line of (await media.text()).split("\n")) {
+      const value = line.trim();
+      if (value.startsWith("#EXTINF:")) duration = Number.parseFloat(value.slice(8));
+      else if (value && !value.startsWith("#")) { if (time + duration > start && time < end) segments.push({ time, duration, url: value.startsWith("http") ? value : base + value }); time += duration; }
+    }
+    if (!segments.length) throw new Error("Janela fora da VOD");
+    const temp = await mkdtemp(join(tmpdir(), "alfredd-vod-"));
+    const list = join(temp, "window.m3u8");
+    await writeFile(list, ["#EXTM3U", "#EXT-X-VERSION:3", "#EXT-X-TARGETDURATION:10", ...segments.flatMap((item) => [`#EXTINF:${item.duration.toFixed(3)},`, item.url]), "#EXT-X-ENDLIST", ""].join("\n"));
+    try {
+      const codec = url.searchParams.get("precise") === "1" ? ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-c:a", "aac"] : ["-c", "copy", "-bsf:a", "aac_adtstoasc"];
+      await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-protocol_whitelist", "file,http,https,tcp,tls,crypto", "-i", list, "-ss", (start - segments[0].time).toFixed(3), "-t", (end - start).toFixed(3), ...codec, "-movflags", "+faststart", file]);
+    } finally { await rm(temp, { recursive: true, force: true }); }
+  });
+}
+async function handle(req, res) {
+  if (secret && req.headers.authorization !== `Bearer ${secret}`) return sendJson(res, 401, { error: "unauthorized" });
+  const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+  if (url.pathname === "/health") return sendJson(res, 200, { ok: true, service: "media-worker" });
+  if (req.method !== "GET") return sendJson(res, 405, { error: "method_not_allowed" });
+  try {
+    const media = url.pathname === "/youtube/source" ? await youtube(url) : url.pathname === "/twitch/vod" ? await twitchVod(url) : null;
+    if (!media) return sendJson(res, 404, { error: "not_found" });
+    if (media.redirect) { res.writeHead(307, { location: media.redirect }); return res.end(); }
+    return streamFile(req, res, media.file, media.size);
+  } catch (error) { return sendJson(res, 502, { error: error instanceof Error ? error.message : "media_failed" }); }
+}
+http.createServer((req, res) => void handle(req, res)).listen(port, "0.0.0.0", () => console.log(`media-worker listening on ${port}`));

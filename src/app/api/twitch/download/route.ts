@@ -12,6 +12,7 @@ import {
 } from "@/lib/twitch/media";
 import { createReadStream } from "node:fs";
 import { Readable } from "node:stream";
+import { mediaWorkerUrl, proxyMediaWorker } from "@/lib/media-worker";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -54,6 +55,18 @@ export async function GET(req: Request) {
   const ref = parseTwitchUrl(sp.get("url") ?? "");
   if (!ref) return NextResponse.json({ error: "Link da Twitch inválido" }, { status: 400 });
   const attachment = sp.get("dl") !== "0";
+
+  // Clips continuam sendo proxyados localmente; VODs com ffmpeg vão para o worker.
+  if (ref.kind === "vod" && mediaWorkerUrl()) {
+    const workerParams = new URLSearchParams({ id: ref.id, start: sp.get("start") ?? "", end: sp.get("end") ?? "" });
+    for (const key of ["quality", "precise"]) {
+      const value = sp.get(key);
+      if (value) workerParams.set(key, value);
+    }
+    const response = await proxyMediaWorker(req, `/twitch/vod?${workerParams.toString()}`);
+    if (attachment) response.headers.set("Content-Disposition", `attachment; filename="twitch-vod-${ref.id}.mp4"`);
+    return response;
+  }
 
   try {
     if (ref.kind === "clip") {

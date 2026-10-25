@@ -6,6 +6,7 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { getSession } from "@/lib/auth";
 import { parseVideo } from "@/lib/youtube/parse";
+import { mediaWorkerUrl, proxyMediaWorker } from "@/lib/media-worker";
 
 export const runtime = "nodejs";
 type MediaCache = { file: string; size: number; at: number; pending?: Promise<MediaCache> };
@@ -162,6 +163,9 @@ export async function GET(req: Request) {
   const params = new URL(req.url).searchParams;
   const videoId = parseVideo(params.get("videoId") ?? "")?.videoId;
   if (!videoId) return new Response("invalid_video", { status: 400 });
+  if (mediaWorkerUrl()) {
+    return proxyMediaWorker(req, `/youtube/source?${params.toString()}`);
+  }
   let win: MediaWindow | undefined;
   if (params.has("start") || params.has("end")) {
     const startMs = Number(params.get("start"));
