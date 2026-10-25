@@ -11,6 +11,7 @@ const secret = process.env.MEDIA_WORKER_SECRET || "";
 const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
 const ytdlp = process.env.YTDLP_PATH || "yt-dlp";
 const deno = process.env.DENO_PATH || (process.platform === "win32" ? "deno" : "/usr/local/bin/deno");
+const youtubeProxy = process.env.YOUTUBE_PROXY_URL?.trim() || "";
 const youtubePlayerClients = (process.env.YOUTUBE_PLAYER_CLIENTS || "android_vr,tv,web_embedded;tv,web_embedded;web_safari,web_embedded;default")
   .split(";")
   .map((value) => value.trim())
@@ -39,8 +40,9 @@ async function runYtdlp(args) {
   let lastError;
   for (const clients of youtubePlayerClients) {
     const extractorArgs = clients === "default" ? [] : ["--extractor-args", `youtube:player_client=${clients}`];
+    const proxyArgs = youtubeProxy ? ["--proxy", youtubeProxy] : [];
     try {
-      return await run(ytdlp, ["--js-runtimes", `deno:${deno}`, "--remote-components", "ejs:github", ...extractorArgs, ...args]);
+      return await run(ytdlp, ["--js-runtimes", `deno:${deno}`, "--remote-components", "ejs:github", ...proxyArgs, ...extractorArgs, ...args]);
     } catch (error) {
       lastError = error;
       console.warn(`[youtube] extractor client ${clients} failed: ${error.message}`);
@@ -100,7 +102,8 @@ async function youtube(url) {
     if (!urls[0]) throw new Error("yt-dlp não retornou vídeo");
     progress.set(key, { status: "downloading", processedMs: 0 });
     const seek = start == null ? [] : ["-ss", String(start / 1000), "-t", String((end - start) / 1000)];
-    const args = ["-hide_banner", "-loglevel", "error", "-y", ...seek, "-i", urls[0]];
+    const ffmpegProxy = /^https?:\/\//i.test(youtubeProxy) ? ["-http_proxy", youtubeProxy] : [];
+    const args = ["-hide_banner", "-loglevel", "error", "-y", ...ffmpegProxy, ...seek, "-i", urls[0]];
     if (urls[1]) args.push(...seek, "-i", urls[1], "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac"); else args.push("-c", "copy");
     args.push("-movflags", "+faststart", file);
     await run(ffmpeg, args);
