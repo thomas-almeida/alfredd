@@ -22,6 +22,7 @@ const youtubePlayerClients = (process.env.YOUTUBE_PLAYER_CLIENTS || "android_vr,
   .map((value) => value.trim())
   .filter(Boolean);
 const ttl = Number(process.env.MEDIA_CACHE_TTL_MS || 30 * 60_000);
+const ytdlpTimeoutMs = Number(process.env.YTDLP_TIMEOUT_MS || 30_000);
 const cacheDir = mkdir(join(tmpdir(), "alfredd-media"), { recursive: true }).then(() => join(tmpdir(), "alfredd-media"));
 const pending = new Map();
 const progress = new Map();
@@ -31,14 +32,21 @@ function sendJson(res, status, value) {
   res.writeHead(status, { "content-type": "application/json", "content-length": Buffer.byteLength(body) });
   res.end(body);
 }
-function run(command, args) {
+function run(command, args, timeoutMs = 0) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { env: process.env });
     let out = ""; let error = "";
+    const timer = timeoutMs > 0 ? setTimeout(() => {
+      child.kill("SIGTERM");
+      reject(new Error(`${command} excedeu o timeout de ${timeoutMs}ms`));
+    }, timeoutMs) : null;
     child.stdout.on("data", (data) => { out += data.toString(); });
     child.stderr.on("data", (data) => { error += data.toString(); });
     child.on("error", (err) => reject(new Error(`${command} não encontrado: ${err.message}`)));
-    child.on("close", (code) => code === 0 ? resolve(out) : reject(new Error(error.trim().slice(-1000) || `${command} falhou`)));
+    child.on("close", (code) => {
+      if (timer) clearTimeout(timer);
+      code === 0 ? resolve(out) : reject(new Error(error.trim().slice(-1000) || `${command} falhou`));
+    });
   });
 }
 async function runYtdlp(args) {
@@ -49,8 +57,9 @@ async function runYtdlp(args) {
     const proxyArgs = youtubeProxy ? ["--proxy", youtubeProxy] : [];
     const cookieArgs = cookiePath ? ["--cookies", cookiePath] : [];
     const userAgentArgs = youtubeUserAgent ? ["--user-agent", youtubeUserAgent] : [];
+    console.log(`[youtube] tentando cliente ${clients} (proxy=${Boolean(youtubeProxy)}, cookies=${Boolean(cookiePath)})`);
     try {
-      return await run(ytdlp, ["--js-runtimes", `deno:${deno}`, "--remote-components", "ejs:github", ...proxyArgs, ...cookieArgs, ...userAgentArgs, ...extractorArgs, ...args]);
+      return await run(ytdlp, ["--js-runtimes", `deno:${deno}`, "--remote-components", "ejs:github", ...proxyArgs, ...cookieArgs, ...userAgentArgs, ...extractorArgs, ...args], ytdlpTimeoutMs);
     } catch (error) {
       lastError = error;
       console.warn(`[youtube] extractor client ${clients} failed: ${error.message}`);

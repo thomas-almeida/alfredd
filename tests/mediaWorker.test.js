@@ -53,6 +53,8 @@ test("contrato de deploy mantém Vercel e Render separados", async () => {
   assert.match(server, /YOUTUBE_USER_AGENT/);
   assert.match(server, /--cookies/);
   assert.match(server, /--user-agent/);
+  assert.match(server, /YTDLP_TIMEOUT_MS/);
+  assert.match(server, /excedeu o timeout/);
   assert.match(server, /YOUTUBE_PLAYER_CLIENTS/);
   assert.match(server, /android_vr/);
   assert.match(server, /player_client=/);
