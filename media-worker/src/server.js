@@ -12,6 +12,11 @@ const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
 const ytdlp = process.env.YTDLP_PATH || "yt-dlp";
 const deno = process.env.DENO_PATH || (process.platform === "win32" ? "deno" : "/usr/local/bin/deno");
 const youtubeProxy = process.env.YOUTUBE_PROXY_URL?.trim() || "";
+const youtubeUserAgent = process.env.YOUTUBE_USER_AGENT?.trim() || "";
+const youtubeCookiesFile = process.env.YOUTUBE_COOKIES_FILE?.trim() || "";
+const youtubeCookiesPath = process.env.YOUTUBE_COOKIES_B64?.trim()
+  ? writeFile(join(tmpdir(), `alfredd-youtube-cookies-${process.pid}.txt`), Buffer.from(process.env.YOUTUBE_COOKIES_B64.trim(), "base64"), { mode: 0o600 }).then(() => join(tmpdir(), `alfredd-youtube-cookies-${process.pid}.txt`))
+  : Promise.resolve("");
 const youtubePlayerClients = (process.env.YOUTUBE_PLAYER_CLIENTS || "android_vr,tv,web_embedded;tv,web_embedded;web_safari,web_embedded;default")
   .split(";")
   .map((value) => value.trim())
@@ -38,11 +43,14 @@ function run(command, args) {
 }
 async function runYtdlp(args) {
   let lastError;
+  const cookiePath = youtubeCookiesFile || await youtubeCookiesPath;
   for (const clients of youtubePlayerClients) {
     const extractorArgs = clients === "default" ? [] : ["--extractor-args", `youtube:player_client=${clients}`];
     const proxyArgs = youtubeProxy ? ["--proxy", youtubeProxy] : [];
+    const cookieArgs = cookiePath ? ["--cookies", cookiePath] : [];
+    const userAgentArgs = youtubeUserAgent ? ["--user-agent", youtubeUserAgent] : [];
     try {
-      return await run(ytdlp, ["--js-runtimes", `deno:${deno}`, "--remote-components", "ejs:github", ...proxyArgs, ...extractorArgs, ...args]);
+      return await run(ytdlp, ["--js-runtimes", `deno:${deno}`, "--remote-components", "ejs:github", ...proxyArgs, ...cookieArgs, ...userAgentArgs, ...extractorArgs, ...args]);
     } catch (error) {
       lastError = error;
       console.warn(`[youtube] extractor client ${clients} failed: ${error.message}`);
