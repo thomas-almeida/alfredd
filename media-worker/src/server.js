@@ -123,9 +123,9 @@ async function twitchVod(url) {
   });
 }
 async function handle(req, res) {
-  if (secret && req.headers.authorization !== `Bearer ${secret}`) return sendJson(res, 401, { error: "unauthorized" });
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   if (url.pathname === "/health") return sendJson(res, 200, { ok: true, service: "media-worker" });
+  if (secret && req.headers.authorization !== `Bearer ${secret}`) return sendJson(res, 401, { error: "unauthorized" });
   if (req.method !== "GET") return sendJson(res, 405, { error: "method_not_allowed" });
   try {
     const media = url.pathname === "/youtube/source" ? await youtube(url) : url.pathname === "/twitch/vod" ? await twitchVod(url) : null;

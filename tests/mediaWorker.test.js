@@ -27,19 +27,18 @@ ready = new Promise((resolve, reject) => {
 
 after(() => worker.kill());
 
-test("media-worker inicia com healthcheck protegido", async () => {
+test("media-worker expõe healthcheck público e protege a mídia", async () => {
   await ready;
   const unauthorized = await fetch(`http://127.0.0.1:${port}/health`);
-  assert.equal(unauthorized.status, 401);
-  const authorized = await fetch(`http://127.0.0.1:${port}/health`, { headers: { Authorization: "Bearer regression-secret" } });
-  assert.equal(authorized.status, 200);
-  assert.deepEqual(await authorized.json(), { ok: true, service: "media-worker" });
+  assert.equal(unauthorized.status, 200);
+  assert.deepEqual(await unauthorized.json(), { ok: true, service: "media-worker" });
+  const media = await fetch(`http://127.0.0.1:${port}/youtube/source?videoId=test`);
+  assert.equal(media.status, 401);
 });
 
 test("contrato de deploy mantém Vercel e Render separados", async () => {
   const dockerfile = await readFile(join(root, "media-worker", "Dockerfile"), "utf8");
-  const vercel = JSON.parse(await readFile(join(root, "vercel.json"), "utf8"));
   assert.match(dockerfile, /ffmpeg/);
   assert.match(dockerfile, /yt-dlp/);
-  assert.equal(vercel.crons[0].path, "/api/cron/monitorings");
+  await assert.rejects(readFile(join(root, "vercel.json")), { code: "ENOENT" });
 });
