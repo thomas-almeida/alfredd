@@ -7,6 +7,7 @@ __pycache__/
 # Env
 .env
 .env*.local
+media-worker/cookies.txt
 
 # Node / Next.js
 node_modules/
