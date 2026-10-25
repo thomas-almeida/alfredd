@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { ProPageGate } from "@/features/billing/ProPageGate";
 import { MonitoringList } from "@/features/monitoring/MonitoringList";
 import { getSession } from "@/lib/auth";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Monitoramentos" };

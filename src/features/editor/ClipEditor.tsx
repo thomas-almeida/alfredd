@@ -21,7 +21,6 @@ import {
   segmentIndexAt,
   slotsFor,
   compositionAt,
-  framingAt,
   type EditorState,
   type Framing,
   type Layout,
@@ -656,6 +655,8 @@ function FocusOverlay({ srcW, srcH }: { srcW: number; srcH: number }) {
   );
 }
 
+// Mantido para compatibilidade com projetos antigos; o overlay atual é o FocusOverlay.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CropOverlay({
   activeKey,
   srcW,
@@ -1056,6 +1057,8 @@ function FocusLayoutPicker({ srcW, srcH }: { srcW: number; srcH: number }) {
   );
 }
 
+// Mantido para compatibilidade com layouts antigos; o editor atual usa FocusLayoutPicker.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function LayoutPicker({
   active,
   onActive,

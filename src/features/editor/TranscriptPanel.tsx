@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { lineIndexAt, searchTranscript, selectionToTrim, windowTranscript, type Transcript, type Trim } from "@/lib/transcript/client";
 import type { Highlight } from "@/lib/transcript/client";
@@ -67,7 +67,7 @@ export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript,
   const hits = useMemo(() => query.length >= 3 ? searchTranscript(words, query, { limit: 20 }) : [], [words, query]);
   const seek = (ms: number) => { if (videoRef.current) videoRef.current.currentTime = ms / 1000; };
 
-  async function requestHighlights(extra: { force?: boolean; cachedOnly?: boolean } = {}) {
+  const requestHighlights = useCallback(async (extra: { force?: boolean; cachedOnly?: boolean } = {}) => {
     const res = await fetch("/api/transcript/highlights", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -75,13 +75,13 @@ export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript,
     });
     const json = await res.json() as { highlights?: Highlight[] | null; cached?: boolean; error?: string; code?: string };
     return { res, json };
-  }
+  }, [sourceUrl, transcriptWindow]);
 
-  function setWindowHighlights(list: Highlight[]) {
+  const setWindowHighlights = useCallback((list: Highlight[]) => {
     const end = windowEnd ?? Infinity;
     setHighlights(list.filter((h) => h.endMs > timeOffsetMs && h.startMs < end)
       .map((h) => ({ ...h, startMs: Math.max(0, h.startMs - timeOffsetMs), endMs: Math.min(end - timeOffsetMs, h.endMs - timeOffsetMs) })));
-  }
+  }, [timeOffsetMs, windowEnd]);
 
   // Reabre destaques já salvos sem cobrar a cota. Isso é importante para o
   // editor da Twitch, que usa este painel diretamente (sem HighlightsPanel).
@@ -93,9 +93,9 @@ export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript,
       if (alive && res.ok && json.highlights?.length) setWindowHighlights(json.highlights);
     }).catch(() => { /* sem cache: o usuário pode capturar manualmente */ });
     return () => { alive = false; };
-  }, [transcript, sourceUrl, windowStart, windowEnd, timeOffsetMs, showHighlights]);
+  }, [requestHighlights, setWindowHighlights, transcript, sourceUrl, windowStart, windowEnd, timeOffsetMs, showHighlights]);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true); setError(null);
     try {
       const res = await fetch("/api/transcript", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: sourceUrl, ...transcriptWindow }) });
@@ -105,13 +105,13 @@ export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript,
       onTranscript(json);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setLoading(false); }
-  }
+  }, [onTranscript, sourceUrl, transcriptWindow]);
 
   useEffect(() => {
     if (!autoLoad || transcript || autoLoadedRef.current) return;
     autoLoadedRef.current = true;
     void load();
-  }, [autoLoad, transcript]);
+  }, [autoLoad, load, transcript]);
 
   async function captureHighlights() {
     setHighlightsLoading(true); setError(null);

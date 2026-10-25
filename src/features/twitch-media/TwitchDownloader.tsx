@@ -78,7 +78,6 @@ export function TwitchDownloader({ initialUrl }: { initialUrl?: string }) {
   useEffect(() => {
     if (initialUrl) void resolve(initialUrl);
     // O link inicial só é resolvido na entrada da tela.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialUrl]);
 
   function onSubmit(e: FormEvent) {

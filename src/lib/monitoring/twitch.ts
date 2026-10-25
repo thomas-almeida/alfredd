@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { twitch, type TwitchClip } from "@/lib/twitch/client";

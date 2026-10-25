@@ -1,5 +1,6 @@
 import { QUOTAS } from "@/lib/permissions/quotas";
 import Link from "next/link";
+import Image from "next/image";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { Button } from "@/components/ui/Button";
@@ -230,7 +231,7 @@ export default async function BibliotecaPage({
                   const editorBase = `/twitch/editor?url=${encodeURIComponent(vod.source_url)}&duration=${vod.end_seconds - vod.start_seconds}&vodLength=${vod.length_seconds}&title=${encodeURIComponent(vod.title)}&channel=${encodeURIComponent(vod.channel ?? "")}`;
                   const editor = `${editorBase}&start=${vod.start_seconds}&end=${vod.end_seconds}`;
                   return <div key={vod.id} className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
-                    {vod.thumbnail_url && <img src={vod.thumbnail_url} alt="" className="aspect-video w-full rounded-md object-cover" />}
+                    {vod.thumbnail_url && <Image src={vod.thumbnail_url} alt="" width={640} height={360} className="aspect-video w-full rounded-md object-cover" />}
                     <span className="text-sm font-semibold text-fg">{vod.title}</span>
                     <span className="text-xs text-muted">VOD · {vod.channel ?? "Canal desconhecido"} · {formatSeconds(vod.end_seconds - vod.start_seconds)}</span>
                     <div className="flex flex-wrap items-center gap-3">
@@ -250,7 +251,7 @@ export default async function BibliotecaPage({
                 const start = video.start_ms ?? 0;
                 const end = video.end_ms ?? video.duration_ms ?? 0;
                 return <div key={video.id} className="flex flex-col gap-2 rounded-lg border border-border bg-surface p-3">
-                  {video.thumbnail_url && <img src={video.thumbnail_url} alt="" className="aspect-video w-full rounded-md object-cover" />}
+                  {video.thumbnail_url && <Image src={video.thumbnail_url} alt="" width={640} height={360} className="aspect-video w-full rounded-md object-cover" />}
                   <Link href={`/youtube/clips/${video.id}`} className="text-sm font-semibold text-fg hover:text-accent">{video.title}</Link>
                   <span className="text-xs text-muted">YouTube · {video.channel_title ?? "Canal desconhecido"} · {formatSeconds((end - start) / 1000)}</span>
                   <div className="flex flex-wrap items-center gap-3">

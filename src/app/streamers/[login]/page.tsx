@@ -1,7 +1,5 @@
-import Link from "next/link";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
 import { EmptyState } from "@/components/ui/EmptyState";
-import { Button } from "@/components/ui/Button";
 import { ProActionButton } from "@/features/billing/ProActionButton";
 import { Badge } from "@/components/ui/Badge";
 import { RecommendedClips } from "@/features/clips/RecommendedClips";

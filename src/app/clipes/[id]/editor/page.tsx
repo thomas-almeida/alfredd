@@ -1,7 +1,5 @@
 import { redirect } from "next/navigation";
 import { AppShell, PageHeader } from "@/components/layout/AppShell";
-import Link from "next/link";
-import { Button } from "@/components/ui/Button";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ClipEditor } from "@/features/editor/ClipEditor";
 import { ProPageGate } from "@/features/billing/ProPageGate";

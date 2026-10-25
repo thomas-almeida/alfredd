@@ -121,7 +121,6 @@ export function YoutubeEngagement({ initialChannel, initialVideo }: { initialCha
     if (initialChannel) void fetchEngagement(initialChannel, "channel");
     else if (initialVideo) void fetchEngagement(initialVideo, "video");
     // A URL-selected favorite is intentionally loaded once on entry.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialChannel, initialVideo]);
 
   async function onSubmit(e: FormEvent) {

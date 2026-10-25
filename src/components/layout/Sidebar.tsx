@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useState, useTransition } from "react";
 import { Icon } from "@/components/ui/Icon";
@@ -317,7 +318,7 @@ export function Sidebar({
                   return (
                     <div key={game.key} className="group relative">
                       <Link href={game.href} className={cn("flex items-center gap-3 py-1.5 rounded-sm text-[13px] font-medium transition-colors px-2", active ? "bg-surface-hover text-fg" : "text-muted hover:bg-surface-2 hover:text-fg")} aria-current={active ? "page" : undefined}>
-                        {game.avatar ? <img src={game.avatar} alt="" referrerPolicy="no-referrer" className="w-5 h-5 rounded-sm object-cover" /> : <span className="w-5 h-5 rounded-sm bg-surface-2 text-[0.625rem] font-bold flex items-center justify-center">{game.name.charAt(0).toUpperCase()}</span>}
+                        {game.avatar ? <Image src={game.avatar} alt="" width={20} height={20} className="w-5 h-5 rounded-sm object-cover" /> : <span className="w-5 h-5 rounded-sm bg-surface-2 text-[0.625rem] font-bold flex items-center justify-center">{game.name.charAt(0).toUpperCase()}</span>}
                         <span className="truncate">{game.name}</span>
                       </Link>
                       <button type="button" onClick={() => removeGame(game)} className="absolute right-1 top-1/2 -translate-y-1/2 flex h-6 w-6 items-center justify-center rounded text-muted opacity-0 transition-opacity hover:bg-danger hover:text-white group-hover:opacity-100" aria-label={`Desfavoritar ${game.name}`} title="Desfavoritar">−</button>
@@ -329,7 +330,7 @@ export function Sidebar({
             )}
             {collapsed && games.filter((game) => !removedGames.has(game.key)).map((game) => (
               <Link key={game.key} href={game.href} className={cn("flex items-center justify-center py-1.5 rounded-sm", isActive(pathname, game.href) ? "bg-surface-hover" : "hover:bg-surface-2")} title={game.name}>
-                {game.avatar ? <img src={game.avatar} alt="" referrerPolicy="no-referrer" className="w-5 h-5 rounded-sm object-cover" /> : <span className="w-5 h-5 rounded-sm bg-surface-2 text-[0.625rem] font-bold flex items-center justify-center">{game.name.charAt(0).toUpperCase()}</span>}
+                {game.avatar ? <Image src={game.avatar} alt="" width={20} height={20} className="w-5 h-5 rounded-sm object-cover" /> : <span className="w-5 h-5 rounded-sm bg-surface-2 text-[0.625rem] font-bold flex items-center justify-center">{game.name.charAt(0).toUpperCase()}</span>}
               </Link>
             ))}
           </div>
@@ -341,7 +342,7 @@ export function Sidebar({
       {confirmCreator && <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-labelledby="unfavorite-title" onClick={() => !removing && setConfirmCreator(null)}>
         <div className="w-full max-w-sm rounded-lg border border-border-strong bg-surface p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
           <div className="flex items-center gap-3">
-            {confirmCreator.avatar ? <img src={confirmCreator.avatar} alt="" referrerPolicy="no-referrer" className="h-12 w-12 rounded-full object-cover" /> : <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-lg font-bold">{confirmCreator.name.charAt(0).toUpperCase()}</span>}
+            {confirmCreator.avatar ? <Image src={confirmCreator.avatar} alt="" width={48} height={48} className="h-12 w-12 rounded-full object-cover" /> : <span className="flex h-12 w-12 items-center justify-center rounded-full bg-surface-2 text-lg font-bold">{confirmCreator.name.charAt(0).toUpperCase()}</span>}
             <div><h2 id="unfavorite-title" className="font-semibold">Desfavoritar criador?</h2><p className="text-xs text-muted">{confirmCreator.name}</p></div>
           </div>
           <p className="mt-4 text-sm text-muted">Você deixará de seguir este criador na sua lista de favoritos. No plano Free, o espaço usado não será devolvido.</p>

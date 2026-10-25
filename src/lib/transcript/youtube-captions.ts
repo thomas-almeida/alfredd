@@ -201,8 +201,8 @@ export function parseJson3(data: Json3): { words: Word[]; isAsr: boolean } {
     const next = raw[i + 1];
     let end = w.endMs || Math.min(next ? next.startMs : w.capMs, w.capMs, w.startMs + MAX_WORD_MS);
     if (end <= w.startMs) end = w.startMs + 80;
-    const { capMs, ...rest } = w;
-    return { ...rest, endMs: end };
+    const { text, startMs, estimated, speakerChange } = w;
+    return { text, startMs, endMs: end, ...(estimated && { estimated }), ...(speakerChange && { speakerChange }) };
   });
   return { words, isAsr };
 }

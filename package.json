@@ -2,6 +2,7 @@
   "name": "clipes",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "description": "Clipes — SaaS de descoberta, análise e monitoramento de clipes da Twitch",
   "scripts": {
     "dev": "next dev",
@@ -9,7 +10,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"tests/**/*.test.ts\"",
+    "test": "node --test \"tests/**/*.test.{ts,js}\"",
     "db:types": "supabase gen types typescript --local > src/lib/supabase/database.types.ts"
   },
   "dependencies": {

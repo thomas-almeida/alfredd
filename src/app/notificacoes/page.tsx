@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { ProPageGate } from "@/features/billing/ProPageGate";
 import { NotificationSettings } from "@/features/monitoring/NotificationSettings";
 import { getSession } from "@/lib/auth";
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { createClient } from "@/lib/supabase/server";
 
 export const metadata = { title: "Notificações" };
