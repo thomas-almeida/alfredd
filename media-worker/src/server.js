@@ -141,12 +141,18 @@ async function handle(req, res) {
   if (url.pathname === "/health") return sendJson(res, 200, { ok: true, service: "media-worker" });
   if (secret && req.headers.authorization !== `Bearer ${secret}`) return sendJson(res, 401, { error: "unauthorized" });
   if (req.method !== "GET") return sendJson(res, 405, { error: "method_not_allowed" });
+  const startedAt = Date.now();
+  console.log(`[request] ${req.method} ${url.pathname}`);
   try {
     if (url.pathname === "/youtube/source" && url.searchParams.get("progress") === "1") return sendJson(res, 200, youtubeProgress(url));
     const media = url.pathname === "/youtube/source" ? await youtube(url) : url.pathname === "/twitch/vod" ? await twitchVod(url) : null;
     if (!media) return sendJson(res, 404, { error: "not_found" });
     if (media.redirect) { res.writeHead(307, { location: media.redirect }); return res.end(); }
+    console.log(`[request] ${req.method} ${url.pathname} ready in ${Date.now() - startedAt}ms`);
     return streamFile(req, res, media.file, media.size);
-  } catch (error) { return sendJson(res, 502, { error: error instanceof Error ? error.message : "media_failed" }); }
+  } catch (error) {
+    console.error(`[request] ${req.method} ${url.pathname} failed after ${Date.now() - startedAt}ms`, error);
+    return sendJson(res, 502, { error: error instanceof Error ? error.message : "media_failed" });
+  }
 }
 http.createServer((req, res) => void handle(req, res)).listen(port, "0.0.0.0", () => console.log(`media-worker listening on ${port}`));
