@@ -30,6 +30,9 @@ function run(command, args) {
     child.on("close", (code) => code === 0 ? resolve(out) : reject(new Error(error.trim().slice(-1000) || `${command} falhou`)));
   });
 }
+function runYtdlp(args) {
+  return run(ytdlp, ["--js-runtimes", "node", "--remote-components", "ejs:github", ...args]);
+}
 function range(value, size) {
   if (!value) return { start: 0, end: size - 1, status: 200 };
   const match = /^bytes=(\d+)-(\d*)$/.exec(value);
@@ -66,7 +69,7 @@ async function youtube(url) {
   if (!id) throw new Error("invalid_video");
   if (url.searchParams.get("audio") === "0") {
     const format = `best[ext=mp4][height<=${process.env.YOUTUBE_MEDIA_MAX_HEIGHT || "480"}]/best`;
-    const direct = (await run(ytdlp, ["-g", "-f", format, "--no-warnings", `https://www.youtube.com/watch?v=${id}`])).trim().split(/\r?\n/).find(Boolean);
+    const direct = (await runYtdlp(["-g", "-f", format, "--no-warnings", `https://www.youtube.com/watch?v=${id}`])).trim().split(/\r?\n/).find(Boolean);
     if (!direct) throw new Error("yt-dlp não retornou vídeo");
     return { redirect: direct };
   }
@@ -78,7 +81,7 @@ async function youtube(url) {
     progress.set(key, { status: "resolving" });
     const max = process.env.YOUTUBE_MEDIA_MAX_HEIGHT || "480";
     const format = `bestvideo[ext=mp4][height<=${max}]+bestaudio[ext=m4a]/bestvideo[height<=${max}]+bestaudio/best`;
-    const urls = (await run(ytdlp, ["-g", "-f", format, "--no-warnings", `https://www.youtube.com/watch?v=${id}`])).trim().split(/\r?\n/).filter(Boolean);
+    const urls = (await runYtdlp(["-g", "-f", format, "--no-warnings", `https://www.youtube.com/watch?v=${id}`])).trim().split(/\r?\n/).filter(Boolean);
     if (!urls[0]) throw new Error("yt-dlp não retornou vídeo");
     progress.set(key, { status: "downloading", processedMs: 0 });
     const seek = start == null ? [] : ["-ss", String(start / 1000), "-t", String((end - start) / 1000)];

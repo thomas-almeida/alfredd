@@ -42,6 +42,7 @@ test("media-worker expõe healthcheck público e protege a mídia", async () => 
 test("contrato de deploy mantém Vercel e Render separados", async () => {
   const dockerfile = await readFile(join(root, "media-worker", "Dockerfile"), "utf8");
   assert.match(dockerfile, /ffmpeg/);
-  assert.match(dockerfile, /yt-dlp/);
+  assert.match(dockerfile, /yt-dlp\[default\]/);
+  assert.match(await readFile(join(root, "media-worker", "src", "server.js"), "utf8"), /--js-runtimes.*node/);
   await assert.rejects(readFile(join(root, "vercel.json")), { code: "ENOENT" });
 });
