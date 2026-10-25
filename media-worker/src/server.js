@@ -10,6 +10,10 @@ const port = Number(process.env.PORT || 8080);
 const secret = process.env.MEDIA_WORKER_SECRET || "";
 const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
 const ytdlp = process.env.YTDLP_PATH || "yt-dlp";
+const youtubePlayerClients = (process.env.YOUTUBE_PLAYER_CLIENTS || "tv,web_embedded;web_safari,web_embedded;default")
+  .split(";")
+  .map((value) => value.trim())
+  .filter(Boolean);
 const ttl = Number(process.env.MEDIA_CACHE_TTL_MS || 30 * 60_000);
 const cacheDir = mkdir(join(tmpdir(), "alfredd-media"), { recursive: true }).then(() => join(tmpdir(), "alfredd-media"));
 const pending = new Map();
@@ -30,8 +34,18 @@ function run(command, args) {
     child.on("close", (code) => code === 0 ? resolve(out) : reject(new Error(error.trim().slice(-1000) || `${command} falhou`)));
   });
 }
-function runYtdlp(args) {
-  return run(ytdlp, ["--js-runtimes", "deno:/usr/local/bin/deno", "--remote-components", "ejs:github", ...args]);
+async function runYtdlp(args) {
+  let lastError;
+  for (const clients of youtubePlayerClients) {
+    const extractorArgs = clients === "default" ? [] : ["--extractor-args", `youtube:player_client=${clients}`];
+    try {
+      return await run(ytdlp, ["--js-runtimes", "deno:/usr/local/bin/deno", "--remote-components", "ejs:github", ...extractorArgs, ...args]);
+    } catch (error) {
+      lastError = error;
+      console.warn(`[youtube] extractor client ${clients} failed: ${error.message}`);
+    }
+  }
+  throw lastError || new Error("yt-dlp falhou");
 }
 function range(value, size) {
   if (!value) return { start: 0, end: size - 1, status: 200 };

@@ -43,6 +43,9 @@ test("contrato de deploy mantém Vercel e Render separados", async () => {
   const dockerfile = await readFile(join(root, "media-worker", "Dockerfile"), "utf8");
   assert.match(dockerfile, /ffmpeg/);
   assert.match(dockerfile, /yt-dlp\[default\]/);
-  assert.match(await readFile(join(root, "media-worker", "src", "server.js"), "utf8"), /--js-runtimes.*deno/);
+  const server = await readFile(join(root, "media-worker", "src", "server.js"), "utf8");
+  assert.match(server, /--js-runtimes.*deno/);
+  assert.match(server, /YOUTUBE_PLAYER_CLIENTS/);
+  assert.match(server, /player_client=/);
   await assert.rejects(readFile(join(root, "vercel.json")), { code: "ENOENT" });
 });
