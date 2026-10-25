@@ -38,7 +38,7 @@ export function DownloadDirectorySetting() {
       ) : (
         <div className="flex items-center gap-3 mt-4 flex-wrap">
           <Button size="sm" variant="secondary" onClick={choose}>Escolher pasta</Button>
-          <span className="text-[13px] text-muted">{directory ? `Atual: ${directory}` : "Nenhuma pasta escolhida"}</span>
+          <span className="text-[13px] text-green-500">{directory ? `Caminho Atual: /${directory}` : "Nenhuma pasta escolhida"}</span>
         </div>
       )}
       {message && <p className="text-[13px] text-muted mt-3">{message}</p>}

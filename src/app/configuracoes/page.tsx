@@ -13,7 +13,7 @@ export default async function ConfiguracoesPage() {
         title="Configurações"
         subtitle="Perfil, preferências, fuso horário, privacidade e LGPD."
       />
-      <div className="max-w-2xl flex flex-col gap-5">
+      <div className="grid grid-cols-2 gap-4">
         <ClipLanguageSetting initial={lang} />
         <DownloadDirectorySetting />
       </div>
