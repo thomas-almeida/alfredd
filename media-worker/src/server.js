@@ -31,7 +31,7 @@ function run(command, args) {
   });
 }
 function runYtdlp(args) {
-  return run(ytdlp, ["--js-runtimes", "node", "--remote-components", "ejs:github", ...args]);
+  return run(ytdlp, ["--js-runtimes", "deno:/usr/local/bin/deno", "--remote-components", "ejs:github", ...args]);
 }
 function range(value, size) {
   if (!value) return { start: 0, end: size - 1, status: 200 };
