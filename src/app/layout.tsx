@@ -3,15 +3,35 @@ import "./globals.css";
 import { SupportButton } from "@/components/layout/SupportButton";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
   title: {
-    default: "Clipes — Descubra os melhores momentos antes que viralizem",
-    template: "%s · Clipes",
+    default: "Alfredd — Descubra os melhores momentos antes que viralizem",
+    template: "%s · Alfredd",
   },
   description:
-    "Radar de cortes da Twitch: descubra, analise, organize e monitore clipes relevantes de jogos e streamers. Pare de procurar cortes.",
-  applicationName: "Clipes",
+    "Descubra, analise, organize e corte os melhores momentos da Twitch e do YouTube antes que viralizem.",
+  applicationName: "Alfredd",
+  openGraph: {
+    type: "website",
+    locale: "pt_BR",
+    siteName: "Alfredd",
+    title: "Alfredd — Descubra os melhores momentos antes que viralizem",
+    description:
+      "Descubra, analise, organize e corte os melhores momentos da Twitch e do YouTube antes que viralizem.",
+    images: [{ url: "/alfredd-icon.png", width: 1024, height: 1024, alt: "Alfredd" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Alfredd — Descubra os melhores momentos antes que viralizem",
+    description:
+      "Descubra, analise, organize e corte os melhores momentos da Twitch e do YouTube antes que viralizem.",
+    images: ["/alfredd-icon.png"],
+  },
   icons: {
-    icon: "/favicon.ico",
+    icon: [
+      { url: "/favicon.ico", type: "image/x-icon" },
+      { url: "/alfredd-icon.png", type: "image/png" },
+    ],
     shortcut: "/favicon.ico",
     apple: "/alfredd-icon.png",
   },
