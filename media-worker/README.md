@@ -34,6 +34,17 @@ Protegida por `Authorization: Bearer MEDIA_WORKER_SECRET`.
 - O navegador nao acessa diretamente URLs assinadas do YouTube.
 - Nao alterar o editor para usar o fluxo FFmpeg de video+audio sem um teste real de reproducao.
 
+#### Contrato do player
+
+Este e o contrato que manteve o preview e o editor funcionando:
+
+1. `ClipEditor.tsx` deve enviar `audio=0`.
+2. O worker deve baixar o MP4 com `yt-dlp` usando as credenciais do Fly.
+3. O worker deve servir o arquivo local com `Accept-Ranges: bytes` e responder corretamente a requisicoes `Range`.
+4. O navegador deve apontar para o endpoint autenticado da Vercel, que faz proxy para o worker.
+
+Nao retornar uma URL assinada do YouTube para o navegador. Ela pode expirar, exigir o mesmo proxy da requisicao original ou retornar 403 quando for acessada pelo browser. Essa foi a causa dos previews intermitentes e do editor falhar mesmo quando a transcricao funcionava.
+
 ### `POST /youtube/transcript`
 
 Protegida pelo mesmo secret. Recebe `videoId` e opcionalmente `vocabulary`.
@@ -87,6 +98,27 @@ Proxy, cookies, user-agent e `GROQ_API_KEY` devem ficar somente no Fly. O `.env`
 - Nao fazer o FFmpeg da Vercel processar YouTube; a Vercel nao possui FFmpeg instalado.
 - Mudancas no fluxo YouTube exigem `npm.cmd test -- --runInBand`, `npm.cmd run typecheck` e teste real de preview/transcricao.
 
+### Checklist antes de alterar o worker
+
+- [ ] Confirmar se a mudanca afeta `audio=0`, `Range`, autenticacao ou o cache.
+- [ ] Preservar `yt-dlp`, proxy, cookies, user-agent e PO Token no download do YouTube.
+- [ ] Manter FFmpeg somente sobre arquivos locais; nao passar `-http_proxy` para essa etapa.
+- [ ] Manter timeout finito e deduplicacao de requisicoes para evitar loops infinitos no frontend.
+- [ ] Manter mensagens de erro sanitizadas: nunca registrar cookies, tokens, proxy ou URL assinada.
+- [ ] Nao reduzir a memoria abaixo de 2 GB.
+- [ ] Atualizar os testes de regressao antes do deploy quando o contrato mudar.
+
+### Definicao de pronto
+
+Uma alteracao do worker so esta pronta quando todos os itens abaixo forem verdadeiros:
+
+1. O worker inicia em `0.0.0.0:8080` e `/health` responde 200.
+2. Um video publico consegue carregar preview no editor, inclusive apos recarregar a pagina.
+3. A transcricao retorna timestamps e permite selecionar um trecho.
+4. O player consegue fazer requisicoes parciais (`Range`) sem receber uma URL direta do YouTube.
+5. Falhas de yt-dlp, proxy, PO Token, FFmpeg e memoria terminam com erro controlado, sem request pendurada indefinidamente.
+6. Os testes automatizados, typecheck e um teste real no Fly passam.
+
 ## Testes de regressao
 
 `tests/mediaWorker.test.js` cobre:
@@ -99,6 +131,9 @@ Proxy, cookies, user-agent e `GROQ_API_KEY` devem ficar somente no Fly. O `.env`
 - sanitizacao de erros 403 e URLs assinadas;
 - memoria de 2048 MB no `fly.toml`;
 - uso de MP4 progressivo no editor.
+- contrato `audio=0` e ausencia de polling infinito no frontend;
+- servico em `0.0.0.0:8080` e configuracao de memoria do Fly;
+- fluxo de transcricao sem proxy no FFmpeg local.
 
 Comandos:
 
@@ -123,3 +158,12 @@ Invoke-WebRequest https://alfredd-media-worker.fly.dev/health
 ```
 
 O deploy da Vercel ocorre pelo push para `main`. Depois do deploy, teste video, transcricao e selecao de trecho no editor.
+
+### Smoke test manual apos deploy
+
+1. Abrir um video publico no fluxo YouTube.
+2. Confirmar que o preview aparece e que a duracao e carregada.
+3. Clicar em `Carregar` na transcricao.
+4. Selecionar um trecho e verificar que o editor reproduz o mesmo trecho.
+5. Recarregar o editor e repetir o teste.
+6. Nos logs do Fly, confirmar que nao ha `out of memory`, `Option http_proxy not found`, `ffmpeg not found`, timeout sem encerramento ou sequencia infinita de requests.
