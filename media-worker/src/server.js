@@ -31,6 +31,7 @@ const ytdlpTimeoutMs = Number(process.env.YTDLP_TIMEOUT_MS || 30_000);
 const cacheDir = mkdir(join(tmpdir(), "alfredd-media"), { recursive: true }).then(() => join(tmpdir(), "alfredd-media"));
 const pending = new Map();
 const progress = new Map();
+const directYoutubeCache = new Map();
 
 function sendJson(res, status, value) {
   const body = JSON.stringify(value);
@@ -75,6 +76,21 @@ async function runYtdlp(args) {
     }
   }
   throw lastError || new Error("yt-dlp falhou");
+}
+
+async function directYoutubeUrl(id, format) {
+  const key = `${id}:${format}`;
+  const cached = directYoutubeCache.get(key);
+  if (cached?.url && Date.now() - cached.at < 5 * 60_000) return cached.url;
+  if (cached?.pending) return cached.pending;
+  const pendingUrl = (async () => {
+    const direct = (await runYtdlp(["-g", "-f", format, "--no-warnings", `https://www.youtube.com/watch?v=${id}`])).trim().split(/\r?\n/).find(Boolean);
+    if (!direct) throw new Error("yt-dlp nÃ£o retornou vÃ­deo");
+    directYoutubeCache.set(key, { url: direct, at: Date.now() });
+    return direct;
+  })();
+  directYoutubeCache.set(key, { pending: pendingUrl });
+  try { return await pendingUrl; } catch (error) { directYoutubeCache.delete(key); throw error; }
 }
 
 function readRequestBody(req) {
@@ -197,14 +213,16 @@ async function youtube(url) {
   if (!id) throw new Error("invalid_video");
   if (url.searchParams.get("audio") === "0") {
     const format = `best[ext=mp4][height<=${process.env.YOUTUBE_MEDIA_MAX_HEIGHT || "480"}]/best`;
+    return { redirect: await directYoutubeUrl(id, format) };
     const direct = (await runYtdlp(["-g", "-f", format, "--no-warnings", `https://www.youtube.com/watch?v=${id}`])).trim().split(/\r?\n/).find(Boolean);
     if (!direct) throw new Error("yt-dlp não retornou vídeo");
-    return { redirect: direct };
+    return { redirect: await directYoutubeUrl(id, format) };
   }
   if (url.searchParams.get("audio") === "1") {
+    return { redirect: await directYoutubeUrl(id, "bestaudio[ext=m4a]/bestaudio") };
     const direct = (await runYtdlp(["-g", "-f", "bestaudio[ext=m4a]/bestaudio", "--no-warnings", `https://www.youtube.com/watch?v=${id}`])).trim().split(/\r?\n/).find(Boolean);
     if (!direct) throw new Error("yt-dlp nÃ£o retornou audio");
-    return { redirect: direct };
+    return { redirect: await directYoutubeUrl(id, "bestaudio[ext=m4a]/bestaudio") };
   }
   const start = url.searchParams.has("start") ? Number(url.searchParams.get("start")) : null;
   const end = url.searchParams.has("end") ? Number(url.searchParams.get("end")) : null;
