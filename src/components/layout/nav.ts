@@ -47,7 +47,6 @@ export const navSections: NavSection[] = [
     title: "Conta",
     items: [
       { label: "Configurações", href: "/configuracoes", icon: "settings" },
-      { label: "Admin", href: "/admin", icon: "shield" },
     ],
   },
 ];

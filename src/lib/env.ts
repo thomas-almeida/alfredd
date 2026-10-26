@@ -91,19 +91,3 @@ export function getServerEnv(): z.infer<typeof serverSchema> {
   return cachedServerEnv;
 }
 
-/** Status de cada integração, para telas de /admin e degradação graciosa. */
-export function integrationStatus() {
-  const e = getServerEnv();
-  return {
-    supabaseServiceRole: Boolean(e.SUPABASE_SERVICE_ROLE_KEY),
-    twitch: Boolean(e.TWITCH_CLIENT_ID && e.TWITCH_CLIENT_SECRET),
-    telegram: Boolean(e.TELEGRAM_BOT_TOKEN),
-    resend: Boolean(e.RESEND_API_KEY),
-    abacatepay: Boolean(e.ABACATEPAY_DEV_KEY),
-    youtube: Boolean(e.YOUTUBE_API_KEY),
-    transcription: Boolean(
-      e.TRANSCRIBE_API_KEY || e.GROQ_API_KEY || e.OPENAI_API_KEY,
-    ),
-    llm: Boolean(e.GEMINI_API_KEY || e.LLM_API_KEY || e.OPENROUTER_API_KEY || e.OPENAI_API_KEY),
-  } as const;
-}
