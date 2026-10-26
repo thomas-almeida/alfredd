@@ -39,7 +39,9 @@ function sendJson(res, status, value) {
   res.end(body);
 }
 function sanitizeError(value) {
-  return String(value).replace(/https?:\/\/\S+/g, "[signed-url]");
+  const text = String(value);
+  if (/Server returned 403 Forbidden/i.test(text)) return "upstream media returned HTTP 403 (access denied)";
+  return text.replace(/https?:\/\/\S+/g, "[signed-url]");
 }
 function run(command, args, timeoutMs = 0) {
   return new Promise((resolve, reject) => {
@@ -162,7 +164,10 @@ async function youtubeTranscript(body) {
   const end = Number.isFinite(body.endMs) && Number(body.endMs) > start ? Number(body.endMs) : null;
   const temp = await mkdtemp(join(tmpdir(), "alfredd-transcript-"));
   try {
-    const direct = (await runYtdlp(["-g", "-f", "bestaudio[ext=m4a]/bestaudio", "--no-warnings", `https://www.youtube.com/watch?v=${id}`])).trim().split(/\r?\n/).find(Boolean);
+    const audioTemplate = join(temp, "source.%(ext)s");
+    await runYtdlp(["-f", "bestaudio[ext=m4a]/bestaudio", "--no-playlist", "--no-part", "--force-overwrites", "--no-warnings", "-o", audioTemplate, `https://www.youtube.com/watch?v=${id}`]);
+    const audioFile = (await readdir(temp)).find((name) => name.startsWith("source.") && !name.endsWith(".mp3"));
+    const direct = audioFile ? join(temp, audioFile) : "";
     if (!direct) throw new Error("yt-dlp nÃ£o retornou Ã¡udio");
     const proxyArgs = youtubeProxy ? ["-http_proxy", youtubeProxy] : [];
     const range = start > 0 || end != null ? ["-ss", String(start / 1000), ...(end != null ? ["-to", String(end / 1000)] : [])] : [];
