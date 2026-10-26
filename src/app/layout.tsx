@@ -10,6 +10,11 @@ export const metadata: Metadata = {
   description:
     "Radar de cortes da Twitch: descubra, analise, organize e monitore clipes relevantes de jogos e streamers. Pare de procurar cortes.",
   applicationName: "Clipes",
+  icons: {
+    icon: "/favicon.ico",
+    shortcut: "/favicon.ico",
+    apple: "/alfredd-icon.png",
+  },
 };
 
 export const viewport: Viewport = {

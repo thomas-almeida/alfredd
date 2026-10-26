@@ -3,6 +3,7 @@ import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import { TopBarAuth } from "./TopBarAuth";
 import { GlobalSearch } from "./GlobalSearch";
+import { Brand } from "./Brand";
 
 export interface Crumb {
   label: string;
@@ -12,16 +13,16 @@ export interface Crumb {
 export function TopBar({
   crumbs = [],
   email = null,
+  showBrand = true,
 }: {
   crumbs?: Crumb[];
   email?: string | null;
+  showBrand?: boolean;
 }) {
   return (
     <header className="[grid-area:topbar] sticky top-0 z-20 flex items-center justify-between gap-4 h-(--spacing-topbar) px-6 border-b border-border bg-bg/85 backdrop-blur-md">
       <div className="flex items-center gap-3 min-w-0">
-        <Link href="/" className="inline-flex items-center gap-2 font-semibold italic font-serif text-[16px]">
-          Alfredd
-        </Link>
+        {showBrand && <Brand />}
 
         {crumbs.length > 0 && <span className="text-subtle">/</span>}
         <nav

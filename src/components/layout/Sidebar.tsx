@@ -7,6 +7,7 @@ import { useEffect, useState, useTransition } from "react";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
 import { navSections } from "./nav";
+import { Brand } from "./Brand";
 import { removeFavorite, removeYoutubeFavorite } from "@/features/favorites/actions";
 
 function isActive(pathname: string, href: string): boolean {
@@ -137,10 +138,7 @@ export function Sidebar({
   return (
     <aside className={cn("[grid-area:sidebar] flex flex-col w-(--sidebar-w,var(--spacing-sidebar)) h-screen sticky top-0 border-r border-border bg-bg overflow-hidden transition-[width] duration-200", collapsed ? "p-2" : "p-4", " max-[860px]:fixed max-[860px]:z-40 max-[860px]:-translate-x-full")}>
       <div className={cn("flex items-center gap-2 pt-2 pb-6", collapsed ? "flex-col px-0" : "px-2")}>
-        <span className="inline-flex items-center justify-center w-7 h-7 shrink-0 rounded-sm bg-accent text-accent-fg">
-          <Icon name="film" width={18} height={18} />
-        </span>
-        {!collapsed && <span className="text-base font-bold tracking-tight">Clipes</span>}
+        <Brand collapsed={collapsed} />
         <button
           type="button"
           onClick={toggle}
