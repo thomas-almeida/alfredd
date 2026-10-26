@@ -13,11 +13,12 @@ const ytdlp = process.env.YTDLP_PATH || "yt-dlp";
 const deno = process.env.DENO_PATH || (process.platform === "win32" ? "deno" : "/usr/local/bin/deno");
 const youtubeProxy = process.env.YOUTUBE_PROXY_URL?.trim() || "";
 const youtubeUserAgent = process.env.YOUTUBE_USER_AGENT?.trim() || "";
+const youtubePotProviderUrl = process.env.YOUTUBE_POT_PROVIDER_URL?.trim() || "";
 const youtubeCookiesFile = process.env.YOUTUBE_COOKIES_FILE?.trim() || "";
 const youtubeCookiesPath = process.env.YOUTUBE_COOKIES_B64?.trim()
   ? writeFile(join(tmpdir(), `alfredd-youtube-cookies-${process.pid}.txt`), Buffer.from(process.env.YOUTUBE_COOKIES_B64.trim(), "base64"), { mode: 0o600 }).then(() => join(tmpdir(), `alfredd-youtube-cookies-${process.pid}.txt`))
   : Promise.resolve("");
-const youtubePlayerClients = (process.env.YOUTUBE_PLAYER_CLIENTS || "android_vr,tv,web_embedded;tv,web_embedded;web_safari,web_embedded;default")
+const youtubePlayerClients = (process.env.YOUTUBE_PLAYER_CLIENTS || "mweb,tv,web_safari;tv,web_embedded;default")
   .split(";")
   .map((value) => value.trim())
   .filter(Boolean);
@@ -57,9 +58,10 @@ async function runYtdlp(args) {
     const proxyArgs = youtubeProxy ? ["--proxy", youtubeProxy] : [];
     const cookieArgs = cookiePath ? ["--cookies", cookiePath] : [];
     const userAgentArgs = youtubeUserAgent ? ["--user-agent", youtubeUserAgent] : [];
+    const potArgs = youtubePotProviderUrl ? ["--extractor-args", `youtubepot-bgutilhttp:base_url=${youtubePotProviderUrl}`] : [];
     console.log(`[youtube] tentando cliente ${clients} (proxy=${Boolean(youtubeProxy)}, cookies=${Boolean(cookiePath)})`);
     try {
-      return await run(ytdlp, ["--js-runtimes", `deno:${deno}`, "--remote-components", "ejs:github", ...proxyArgs, ...cookieArgs, ...userAgentArgs, ...extractorArgs, ...args], ytdlpTimeoutMs);
+      return await run(ytdlp, ["--js-runtimes", `deno:${deno}`, "--remote-components", "ejs:github", ...proxyArgs, ...cookieArgs, ...userAgentArgs, ...potArgs, ...extractorArgs, ...args], ytdlpTimeoutMs);
     } catch (error) {
       lastError = error;
       console.warn(`[youtube] extractor client ${clients} failed: ${error.message}`);

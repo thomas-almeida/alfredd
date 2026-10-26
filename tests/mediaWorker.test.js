@@ -43,6 +43,9 @@ test("contrato de deploy mantém Vercel e Render separados", async () => {
   const dockerfile = await readFile(join(root, "media-worker", "Dockerfile"), "utf8");
   assert.match(dockerfile, /ffmpeg/);
   assert.match(dockerfile, /yt-dlp\[default\]/);
+  assert.match(dockerfile, /bgutil-ytdlp-pot-provider/);
+  assert.match(dockerfile, /BGUTIL_VERSION/);
+  assert.match(await readFile(join(root, "media-worker", "start.sh"), "utf8"), /port 4416/);
   const server = await readFile(join(root, "media-worker", "src", "server.js"), "utf8");
   assert.match(server, /--js-runtimes.*deno/);
   assert.match(server, /DENO_PATH/);
@@ -55,8 +58,10 @@ test("contrato de deploy mantém Vercel e Render separados", async () => {
   assert.match(server, /--user-agent/);
   assert.match(server, /YTDLP_TIMEOUT_MS/);
   assert.match(server, /excedeu o timeout/);
+  assert.match(server, /YOUTUBE_POT_PROVIDER_URL/);
+  assert.match(server, /youtubepot-bgutilhttp/);
+  assert.match(server, /mweb,tv,web_safari/);
   assert.match(server, /YOUTUBE_PLAYER_CLIENTS/);
-  assert.match(server, /android_vr/);
   assert.match(server, /player_client=/);
   await assert.rejects(readFile(join(root, "vercel.json")), { code: "ENOENT" });
 });
