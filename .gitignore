@@ -9,6 +9,7 @@ __pycache__/
 .env*.local
 media-worker/cookies.txt
 media-worker/youtube-cookies.txt
+www.youtube.com_cookies.txt
 
 # Node / Next.js
 node_modules/
