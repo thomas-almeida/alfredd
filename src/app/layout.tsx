@@ -2,8 +2,13 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SupportButton } from "@/components/layout/SupportButton";
 
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://alfredd.vercel.app";
+
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000"),
+  metadataBase: new URL(appUrl),
+  alternates: {
+    canonical: "/",
+  },
   title: {
     default: "Alfredd — Descubra os melhores momentos antes que viralizem",
     template: "%s · Alfredd",
@@ -15,6 +20,7 @@ export const metadata: Metadata = {
     type: "website",
     locale: "pt_BR",
     siteName: "Alfredd",
+    url: "/",
     title: "Alfredd — Descubra os melhores momentos antes que viralizem",
     description:
       "Descubra, analise, organize e corte os melhores momentos da Twitch e do YouTube antes que viralizem.",
