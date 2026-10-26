@@ -37,6 +37,9 @@ function sendJson(res, status, value) {
   res.writeHead(status, { "content-type": "application/json", "content-length": Buffer.byteLength(body) });
   res.end(body);
 }
+function sanitizeError(value) {
+  return String(value).replace(/https?:\/\/\S+/g, "[signed-url]");
+}
 function run(command, args, timeoutMs = 0) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { env: process.env });
@@ -50,7 +53,7 @@ function run(command, args, timeoutMs = 0) {
     child.on("error", (err) => reject(new Error(`${command} não encontrado: ${err.message}`)));
     child.on("close", (code) => {
       if (timer) clearTimeout(timer);
-      code === 0 ? resolve(out) : reject(new Error(error.trim().slice(-1000) || `${command} falhou`));
+      code === 0 ? resolve(out) : reject(new Error(sanitizeError(error.trim().slice(-1000) || `${command} falhou`)));
     });
   });
 }

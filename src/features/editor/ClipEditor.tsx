@@ -135,7 +135,9 @@ export function ClipEditor({
     let alive = true;
     (async () => {
       const w = !external ? youtubeWindow : undefined;
-      const query = youtube ? `videoId=${encodeURIComponent(youtube.videoId)}${w ? `&start=${w.startMs}&end=${w.endMs}` : ""}` : "";
+      // A prévia usa um MP4 progressivo assinado pelo YouTube. Isso evita que o
+      // worker precise baixar e remontar vídeo+áudio via FFmpeg para o player.
+      const query = youtube ? `videoId=${encodeURIComponent(youtube.videoId)}&audio=0${w ? `&start=${w.startMs}&end=${w.endMs}` : ""}` : "";
       const externalSource = external ?? (youtube ? {
         sourceUrl: `/api/youtube/source?${query}`,
         title: youtube.title,
@@ -150,7 +152,7 @@ export function ClipEditor({
         const end = (externalSource.endMs ?? externalSource.durationMs) / 1000;
         init(duration, { segments: [{ start, end }] });
         setPhase("project");
-        const progressUrl = !external && youtube ? `/api/youtube/source?${query}&progress=1` : undefined;
+        const progressUrl = undefined;
         setIngest({ clipId: "external", channel: externalSource.channel, status: "novo", duration, sourceUrl: externalSource.sourceUrl, progressUrl, persist: false });
         return;
       }
