@@ -10,6 +10,30 @@ import { TranscriptError, type Transcript, type TranscriptSource } from './types
 
 const YT_ID = /^[A-Za-z0-9_-]{11}$/;
 
+function workerErrorMessage(body: string, status: number, fallback: string): string {
+  let message = body;
+  let code = '';
+  try {
+    const parsed = JSON.parse(body) as { error?: unknown; code?: unknown };
+    if (typeof parsed.error === 'string') message = parsed.error;
+    if (typeof parsed.code === 'string') code = parsed.code;
+  } catch {
+    // O worker pode retornar texto puro em falhas antigas.
+  }
+  const normalized = message.toLowerCase();
+  if (code === 'youtube_blocked') return 'O YouTube bloqueou este download temporariamente. Tente novamente em alguns minutos.';
+  if (code === 'youtube_timeout') return 'O YouTube demorou para responder. Tente novamente.';
+  if (code === 'worker_memory') return 'O worker ficou sem memória ao preparar a mídia. Tente um vídeo menor.';
+  if (/not a bot|sign in to confirm|challenge|confirm you.?re not a bot|cookies?/.test(normalized)) {
+    return 'O YouTube bloqueou este download temporariamente. Tente novamente em alguns minutos.';
+  }
+  if (/timeout|excedeu o timeout/.test(normalized)) {
+    return 'O YouTube demorou para responder. Tente novamente.';
+  }
+  if (status === 401) return 'A conexão com o worker de mídia não está autorizada.';
+  return message.replace(/https?:\/\/\S+/g, '[link oculto]').slice(-240) || fallback;
+}
+
 export function parseYouTubeId(input: string): string | null {
   const s = input.trim();
   if (YT_ID.test(s)) return s;
@@ -77,7 +101,7 @@ async function youtubeAudioUrlFromWorker(worker: string, videoId: string): Promi
     const location = response.headers.get('location');
     if (response.status >= 300 && response.status < 400 && location) return location;
     const body = await response.text().catch(() => '');
-    throw new TranscriptError(`Worker de mídia não retornou áudio (${response.status}): ${body.slice(-300)}`, 502, 'media_worker_audio');
+    throw new TranscriptError(workerErrorMessage(body, response.status, 'O worker não retornou áudio.'), 502, 'media_worker_audio');
   } catch (error) {
     if (error instanceof TranscriptError) throw error;
     throw new TranscriptError(`Não foi possível obter áudio pelo worker: ${error instanceof Error ? error.message : String(error)}`, 502, 'media_worker_audio');
@@ -98,7 +122,7 @@ export async function youtubeTranscriptFromWorker(videoId: string, vocabulary?: 
   });
   if (!response.ok) {
     const body = await response.text().catch(() => '');
-    throw new TranscriptError(`Worker de transcrição HTTP ${response.status}: ${body.slice(-300)}`, 502, 'media_worker_transcript');
+    throw new TranscriptError(workerErrorMessage(body, response.status, 'O worker não retornou a transcrição.'), 502, 'media_worker_transcript');
   }
   return (await response.json()) as Transcript;
 }

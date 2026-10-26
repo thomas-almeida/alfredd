@@ -153,7 +153,7 @@ export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript,
       <span className="text-[13px] font-medium">Transcrição</span>
       {!transcript && <Button size="sm" onClick={load} disabled={loading}>{loading ? "Transcrevendo…" : "Carregar"}</Button>}
     </div>
-    {error && <p className="text-xs text-danger">{error}</p>}
+    {error && <p className="max-h-24 overflow-auto break-words rounded-md border border-danger/30 bg-danger/5 px-2.5 py-2 text-xs leading-5 text-danger">{error}</p>}
     {!transcript ? <p className="text-xs text-muted">Carregue a fala para buscar e selecionar um trecho do vídeo.</p> : <>
       {!aiOnly && <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar na fala…" className="rounded-md border border-border-strong bg-surface-2 px-3 py-2 text-sm outline-none" />}
       {hits.length > 0 && <ul className="max-h-24 overflow-auto rounded-md border border-border text-xs">{hits.map((h) => <li key={`${h.wordStart}-${h.startMs}`}><button type="button" onClick={() => seek(h.startMs)} className="w-full px-2 py-1 text-left hover:bg-surface-hover"><span className="mr-2 font-mono text-accent">{fmt(h.startMs)}</span>{h.snippet}</button></li>)}</ul>}

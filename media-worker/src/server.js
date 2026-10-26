@@ -43,6 +43,20 @@ function sanitizeError(value) {
   if (/Server returned 403 Forbidden/i.test(text)) return "upstream media returned HTTP 403 (access denied)";
   return text.replace(/https?:\/\/\S+/g, "[signed-url]");
 }
+function publicError(error, fallback) {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+  if (/not a bot|sign in to confirm|challenge|confirm you.?re not a bot|cookies?/.test(normalized)) {
+    return { error: "youtube_blocked", code: "youtube_blocked" };
+  }
+  if (/timeout|excedeu o timeout/.test(normalized)) {
+    return { error: "youtube_timeout", code: "youtube_timeout" };
+  }
+  if (/out of memory|killed process|oom/.test(normalized)) {
+    return { error: "worker_memory", code: "worker_memory" };
+  }
+  return { error: fallback, code: "media_failed" };
+}
 function run(command, args, timeoutMs = 0) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, { env: process.env });
@@ -304,7 +318,7 @@ async function handle(req, res) {
   if (secret && req.headers.authorization !== `Bearer ${secret}`) return sendJson(res, 401, { error: "unauthorized" });
   if (req.method === "POST" && url.pathname === "/youtube/transcript") {
     try { return sendJson(res, 200, await youtubeTranscript(await readRequestBody(req))); }
-    catch (error) { console.error("[transcript] failed", error); return sendJson(res, 502, { error: error instanceof Error ? error.message : "transcript_failed" }); }
+    catch (error) { console.error("[transcript] failed", error); return sendJson(res, 502, publicError(error, "transcript_failed")); }
   }
   if (req.method !== "GET") return sendJson(res, 405, { error: "method_not_allowed" });
   const startedAt = Date.now();
@@ -318,7 +332,7 @@ async function handle(req, res) {
     return streamFile(req, res, media.file, media.size);
   } catch (error) {
     console.error(`[request] ${req.method} ${url.pathname} failed after ${Date.now() - startedAt}ms`, error);
-    return sendJson(res, 502, { error: error instanceof Error ? error.message : "media_failed" });
+    return sendJson(res, 502, publicError(error, "media_failed"));
   }
 }
 http.createServer((req, res) => void handle(req, res)).listen(port, "0.0.0.0", () => console.log(`media-worker listening on ${port}`));

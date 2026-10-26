@@ -72,7 +72,7 @@ export function YoutubeTranscriptClipper({ saved }: { saved: { id: string; video
       }} className="absolute inset-0 h-full w-full" />
     </div>
     {/* O painel fica absoluto para que a altura da linha venha só do player. */}
-    <div className="relative max-[1000px]:order-last max-[1000px]:h-[28rem]">
+    <div className="relative min-w-0 max-[1000px]:h-[min(70vh,32rem)] max-[1000px]:min-h-[24rem]">
       <div className="absolute inset-0">
         <TranscriptPanel videoRef={videoRef} sourceUrl={youtubeUrl} transcript={transcript} onTranscript={setTranscript} onTrim={setTrim} autoLoad aiOnly showHighlights={false} fill />
       </div>
