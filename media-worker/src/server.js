@@ -169,10 +169,9 @@ async function youtubeTranscript(body) {
     const audioFile = (await readdir(temp)).find((name) => name.startsWith("source.") && !name.endsWith(".mp3"));
     const direct = audioFile ? join(temp, audioFile) : "";
     if (!direct) throw new Error("yt-dlp nÃ£o retornou Ã¡udio");
-    const proxyArgs = youtubeProxy ? ["-http_proxy", youtubeProxy] : [];
     const range = start > 0 || end != null ? ["-ss", String(start / 1000), ...(end != null ? ["-to", String(end / 1000)] : [])] : [];
     const pattern = join(temp, "part%03d.mp3");
-    await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", ...proxyArgs, ...range, "-i", direct, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame", "-b:a", "32k", "-f", "segment", "-segment_time", "300", "-reset_timestamps", "1", pattern]);
+    await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", ...range, "-i", direct, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame", "-b:a", "32k", "-f", "segment", "-segment_time", "300", "-reset_timestamps", "1", pattern]);
     const files = (await readdir(temp)).filter((name) => name.endsWith(".mp3")).sort();
     const words = [];
     for (let i = 0; i < files.length; i++) words.push(...await transcribeGroq(join(temp, files[i]), start + i * 300_000, vocabulary));

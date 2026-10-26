@@ -82,6 +82,8 @@ test("contrato de deploy mantém Vercel e Render separados", async () => {
   assert.match(server, /source\.%\(ext\)s/);
   assert.match(server, /join\(temp, audioFile\)/);
   assert.match(server, /upstream media returned HTTP 403/);
+  const transcriptWorker = server.slice(server.indexOf("async function youtubeTranscript"), server.indexOf("async function youtube(url)"));
+  assert.doesNotMatch(transcriptWorker, /http_proxy|proxyArgs/);
   const flyToml = await readFile(join(root, "media-worker", "fly.toml"), "utf8");
   assert.match(flyToml, /memory_mb = 2048/);
   const editor = await readFile(join(root, "src", "features", "editor", "ClipEditor.tsx"), "utf8");
