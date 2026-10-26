@@ -80,7 +80,7 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
           aria-label="Entrar ou criar conta"
         >
           <div
-            className="relative w-full max-w-[400px] bg-surface border border-border-strong rounded-lg p-6 shadow-[0_8px_24px_rgba(0,0,0,0.45)]"
+            className="relative w-full max-w-[420px] rounded-xl border border-border-strong bg-surface p-7 shadow-[0_20px_64px_rgba(0,0,0,0.5)]"
             onClick={(e) => e.stopPropagation()}
           >
             <button
@@ -91,8 +91,8 @@ export function AuthModalProvider({ children }: { children: ReactNode }) {
             >
               ×
             </button>
-            <h2 className="text-lg mb-2">Entrar ou criar conta</h2>
-            <p className="text-[13px] text-muted mb-5 max-w-[42ch]">
+            <h2 className="mb-2 text-xl font-semibold tracking-tight">Entrar ou criar conta</h2>
+            <p className="mb-6 max-w-[42ch] text-[13px] leading-5 text-muted">
               {reason ??
                 "Cadastro rápido. Depois você volta exatamente para onde estava."}
             </p>
