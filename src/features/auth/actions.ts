@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { clientEnv } from "@/lib/env";
 
 export interface AuthState {
   ok?: boolean;
@@ -43,7 +44,13 @@ export async function signUp(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({ email, password });
+  const { error } = await supabase.auth.signUp({
+    email,
+    password,
+    options: {
+      emailRedirectTo: new URL("/entrar", clientEnv.NEXT_PUBLIC_APP_URL).toString(),
+    },
+  });
   if (error) {
     return { error: error.message };
   }
