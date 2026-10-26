@@ -217,7 +217,10 @@ async function youtube(url) {
   if (!id) throw new Error("invalid_video");
   if (url.searchParams.get("audio") === "0") {
     const format = `best[ext=mp4][height<=${process.env.YOUTUBE_MEDIA_MAX_HEIGHT || "480"}]/best`;
-    return { redirect: await directYoutubeUrl(id, format) };
+    const key = `youtube-direct:${id}:${format}`;
+    return cachedFile(key, async (file) => {
+      await runYtdlp(["-f", format, "--no-playlist", "--no-part", "--force-overwrites", "--no-warnings", "-o", file, `https://www.youtube.com/watch?v=${id}`]);
+    });
     const direct = (await runYtdlp(["-g", "-f", format, "--no-warnings", `https://www.youtube.com/watch?v=${id}`])).trim().split(/\r?\n/).find(Boolean);
     if (!direct) throw new Error("yt-dlp não retornou vídeo");
     return { redirect: await directYoutubeUrl(id, format) };

@@ -78,6 +78,8 @@ test("contrato de deploy mantém Vercel e Render separados", async () => {
   assert.match(server, /player_client=/);
   assert.match(server, /const directYoutubeCache = new Map\(\)/);
   assert.match(server, /if \(cached\?\.pending\) return cached\.pending/);
+  assert.match(server, /youtube-direct:/);
+  assert.match(server, /--no-playlist.*--no-part.*--force-overwrites.*-o.*file/);
   assert.match(server, /--no-playlist.*--no-part.*--force-overwrites/);
   assert.match(server, /source\.%\(ext\)s/);
   assert.match(server, /join\(temp, audioFile\)/);

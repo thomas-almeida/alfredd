@@ -29,8 +29,9 @@ Publica. Usada pelo Fly para verificar se o processo esta vivo.
 
 Protegida por `Authorization: Bearer MEDIA_WORKER_SECRET`.
 
-- O editor usa `audio=0` para obter um MP4 progressivo e assinado.
-- A URL progressiva e deduplicada em memoria por cinco minutos.
+- O editor usa `audio=0` para pedir um MP4 progressivo.
+- O worker baixa o MP4 com `yt-dlp`, armazena no cache temporario e o serve com suporte a `Range`.
+- O navegador nao acessa diretamente URLs assinadas do YouTube.
 - Nao alterar o editor para usar o fluxo FFmpeg de video+audio sem um teste real de reproducao.
 
 ### `POST /youtube/transcript`
