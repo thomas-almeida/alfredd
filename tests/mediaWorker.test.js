@@ -39,6 +39,16 @@ test("media-worker expõe healthcheck público e protege a mídia", async () => 
   assert.equal(media.status, 401);
 });
 
+test("media-worker protege tambem a rota de transcricao", async () => {
+  await ready;
+  const response = await fetch(`http://127.0.0.1:${port}/youtube/transcript`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ videoId: "dQw4w9WgXcQ" }),
+  });
+  assert.equal(response.status, 401);
+});
+
 test("contrato de deploy mantém Vercel e Render separados", async () => {
   const dockerfile = await readFile(join(root, "media-worker", "Dockerfile"), "utf8");
   assert.match(dockerfile, /ffmpeg/);
@@ -66,5 +76,16 @@ test("contrato de deploy mantém Vercel e Render separados", async () => {
   assert.match(server, /mweb,tv,web_safari/);
   assert.match(server, /YOUTUBE_PLAYER_CLIENTS/);
   assert.match(server, /player_client=/);
+  assert.match(server, /const directYoutubeCache = new Map\(\)/);
+  assert.match(server, /if \(cached\?\.pending\) return cached\.pending/);
+  assert.match(server, /--no-playlist.*--no-part.*--force-overwrites/);
+  assert.match(server, /source\.%\(ext\)s/);
+  assert.match(server, /join\(temp, audioFile\)/);
+  assert.match(server, /upstream media returned HTTP 403/);
+  const flyToml = await readFile(join(root, "media-worker", "fly.toml"), "utf8");
+  assert.match(flyToml, /memory_mb = 2048/);
+  const editor = await readFile(join(root, "src", "features", "editor", "ClipEditor.tsx"), "utf8");
+  assert.match(editor, /videoId=\$\{encodeURIComponent\(youtube\.videoId\)\}&audio=0/);
+  assert.match(editor, /const progressUrl = undefined/);
   await assert.rejects(readFile(join(root, "vercel.json")), { code: "ENOENT" });
 });
