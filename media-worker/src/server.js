@@ -109,6 +109,11 @@ async function youtube(url) {
     if (!direct) throw new Error("yt-dlp não retornou vídeo");
     return { redirect: direct };
   }
+  if (url.searchParams.get("audio") === "1") {
+    const direct = (await runYtdlp(["-g", "-f", "bestaudio[ext=m4a]/bestaudio", "--no-warnings", `https://www.youtube.com/watch?v=${id}`])).trim().split(/\r?\n/).find(Boolean);
+    if (!direct) throw new Error("yt-dlp nÃ£o retornou audio");
+    return { redirect: direct };
+  }
   const start = url.searchParams.has("start") ? Number(url.searchParams.get("start")) : null;
   const end = url.searchParams.has("end") ? Number(url.searchParams.get("end")) : null;
   if ((start == null) !== (end == null) || (start != null && (!Number.isInteger(start) || !Number.isInteger(end) || end <= start))) throw new Error("invalid_window");

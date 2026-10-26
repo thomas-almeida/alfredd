@@ -5,6 +5,7 @@ import 'server-only';
 
 import { spawn } from 'node:child_process';
 import { parseTwitchUrl, pickClipQuality, pickVariant, resolveClip, resolveVod } from '@/lib/twitch/media';
+import { mediaWorkerUrl } from '@/lib/media-worker';
 import { TranscriptError, type TranscriptSource } from './types.ts';
 
 const YT_ID = /^[A-Za-z0-9_-]{11}$/;
@@ -45,6 +46,8 @@ export function parseSource(input: string, vodWindow?: { startMs: number; endMs:
  * O ffmpeg lê essa URL direto; ela expira em algumas horas.
  */
 export function youtubeAudioUrl(videoId: string): Promise<string> {
+  const worker = mediaWorkerUrl();
+  if (worker) return youtubeAudioUrlFromWorker(worker, videoId);
   const bin = process.env.YTDLP_PATH ?? 'yt-dlp';
   return new Promise((resolve, reject) => {
     const p = spawn(bin, ['-g', '-f', 'bestaudio[ext=m4a]/bestaudio', '--no-warnings', `https://www.youtube.com/watch?v=${videoId}`]);
@@ -58,6 +61,27 @@ export function youtubeAudioUrl(videoId: string): Promise<string> {
         : reject(new TranscriptError(`yt-dlp falhou: ${err.slice(-300)}`, 502, 'ytdlp_failed')),
     );
   });
+}
+
+async function youtubeAudioUrlFromWorker(worker: string, videoId: string): Promise<string> {
+  const query = new URLSearchParams({ videoId, audio: '1' });
+  const headers = new Headers();
+  const secret = process.env.MEDIA_WORKER_SECRET;
+  if (secret) headers.set('Authorization', `Bearer ${secret}`);
+  try {
+    const response = await fetch(`${worker}/youtube/source?${query}`, {
+      headers,
+      cache: 'no-store',
+      redirect: 'manual',
+    });
+    const location = response.headers.get('location');
+    if (response.status >= 300 && response.status < 400 && location) return location;
+    const body = await response.text().catch(() => '');
+    throw new TranscriptError(`Worker de mídia não retornou áudio (${response.status}): ${body.slice(-300)}`, 502, 'media_worker_audio');
+  } catch (error) {
+    if (error instanceof TranscriptError) throw error;
+    throw new TranscriptError(`Não foi possível obter áudio pelo worker: ${error instanceof Error ? error.message : String(error)}`, 502, 'media_worker_audio');
+  }
 }
 
 /** Entrada para o ffmpeg (URL ou arquivo) + janela de tempo, por origem. */
