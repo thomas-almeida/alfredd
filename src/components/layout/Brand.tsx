@@ -6,7 +6,7 @@ export function Brand({ collapsed = false }: { collapsed?: boolean }) {
     <Link
       href="/"
       className="inline-flex items-center gap-2 font-semibold tracking-tight"
-      aria-label="Clipes"
+      aria-label="Alfredd"
     >
       <Image
         src="/alfredd-icon.png"
@@ -16,7 +16,7 @@ export function Brand({ collapsed = false }: { collapsed?: boolean }) {
         className="h-7 w-7 shrink-0 rounded-sm object-cover"
         priority
       />
-      {!collapsed && <span>Clipes</span>}
+      {!collapsed && <span>Alfredd</span>}
     </Link>
   );
 }
