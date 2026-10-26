@@ -8,7 +8,7 @@
 import 'server-only';
 
 import { buildTranscript } from './normalize.ts';
-import { audioInputFor } from './sources.ts';
+import { audioInputFor, youtubeTranscriptFromWorker } from './sources.ts';
 import { sourceKey, TranscriptError, type Transcript, type TranscriptSource } from './types.ts';
 import { transcribeWithWhisper, type WhisperConfig } from './whisper.ts';
 import { getYouTubeCaptionWords } from './youtube-captions.ts';
@@ -59,6 +59,17 @@ export async function getTranscript(source: TranscriptSource, o: GetTranscriptOp
 
   if (!t) {
     o.onProgress?.('whisper');
+    if (source.platform === 'youtube') {
+      try {
+        t = await youtubeTranscriptFromWorker(source.videoId, o.vocabulary);
+      } catch (e) {
+        failures.push((e as Error).message);
+      }
+    }
+  }
+
+  if (!t) {
+    o.onProgress?.('whisper_local');
     const a = await audioInputFor(source);
     const prompt = [o.vocabulary, a.hint].filter(Boolean).join(' ');
     const w = await transcribeWithWhisper(a.input, {

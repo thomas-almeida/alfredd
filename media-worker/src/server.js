@@ -3,6 +3,7 @@ const { spawn } = require("node:child_process");
 const { createHash } = require("node:crypto");
 const { createReadStream } = require("node:fs");
 const { mkdir, mkdtemp, rm, stat, writeFile } = require("node:fs/promises");
+const { readFile, readdir } = require("node:fs/promises");
 const { tmpdir } = require("node:os");
 const { join } = require("node:path");
 
@@ -22,6 +23,9 @@ const youtubePlayerClients = (process.env.YOUTUBE_PLAYER_CLIENTS || "mweb,tv,web
   .split(";")
   .map((value) => value.trim())
   .filter(Boolean);
+const groqApiKey = process.env.GROQ_API_KEY?.trim() || "";
+const groqModel = process.env.TRANSCRIBE_MODEL?.trim() || "whisper-large-v3-turbo";
+const groqBaseUrl = (process.env.TRANSCRIBE_BASE_URL?.trim() || "https://api.groq.com/openai/v1").replace(/\/$/, "");
 const ttl = Number(process.env.MEDIA_CACHE_TTL_MS || 30 * 60_000);
 const ytdlpTimeoutMs = Number(process.env.YTDLP_TIMEOUT_MS || 30_000);
 const cacheDir = mkdir(join(tmpdir(), "alfredd-media"), { recursive: true }).then(() => join(tmpdir(), "alfredd-media"));
@@ -68,6 +72,91 @@ async function runYtdlp(args) {
     }
   }
   throw lastError || new Error("yt-dlp falhou");
+}
+
+function readRequestBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.setEncoding("utf8");
+    req.on("data", (chunk) => { body += chunk; if (body.length > 32_000) reject(new Error("request_too_large")); });
+    req.on("end", () => { try { resolve(JSON.parse(body || "{}")); } catch { reject(new Error("invalid_json")); } });
+    req.on("error", reject);
+  });
+}
+
+function transcriptLines(words) {
+  const lines = [];
+  let start = 0;
+  const flush = (end) => {
+    if (end < start) return;
+    const ws = words.slice(start, end + 1);
+    lines.push({ index: lines.length, startMs: ws[0].startMs, endMs: ws.at(-1).endMs, text: ws.map((w) => w.text).join(" "), wordStart: start, wordEnd: end });
+    start = end + 1;
+  };
+  for (let i = 0; i < words.length; i++) {
+    const next = words[i + 1];
+    if (!next) { flush(i); break; }
+    const text = words.slice(start, i + 2).map((w) => w.text).join(" ");
+    const span = next.endMs - words[start].startMs;
+    if (next.startMs - words[i].endMs >= 800 || text.length > 42 || span > 2600 || /[.!?]$/.test(words[i].text) && i - start >= 2) flush(i);
+  }
+  return lines;
+}
+
+function transcriptChunks(words) {
+  const chunks = [];
+  if (!words.length) return chunks;
+  let from = words[0].startMs;
+  const last = words.at(-1).endMs;
+  while (from < last) {
+    const to = from + 25_000;
+    const ws = words.filter((w) => w.startMs >= from && w.startMs < to);
+    if (ws.length) chunks.push({ index: chunks.length, startMs: ws[0].startMs, endMs: ws.at(-1).endMs, text: ws.map((w) => w.text).join(" ") });
+    from = to - 3_000;
+  }
+  return chunks;
+}
+
+async function transcribeGroq(file, offsetMs, vocabulary) {
+  if (!groqApiKey) throw new Error("GROQ_API_KEY não configurada no media-worker");
+  const form = new FormData();
+  form.append("file", new Blob([await readFile(file)], { type: "audio/mpeg" }), "audio.mp3");
+  form.append("model", groqModel);
+  form.append("response_format", "verbose_json");
+  form.append("timestamp_granularities[]", "word");
+  form.append("timestamp_granularities[]", "segment");
+  form.append("temperature", "0");
+  form.append("language", "pt");
+  if (vocabulary) form.append("prompt", String(vocabulary).slice(0, 800));
+  const response = await fetch(`${groqBaseUrl}/audio/transcriptions`, { method: "POST", headers: { Authorization: `Bearer ${groqApiKey}` }, body: form });
+  if (!response.ok) throw new Error(`Groq HTTP ${response.status}: ${(await response.text()).slice(0, 300)}`);
+  const json = await response.json();
+  const words = Array.isArray(json.words) ? json.words : [];
+  return words.filter((w) => typeof w?.word === "string" && Number.isFinite(w.start) && Number.isFinite(w.end)).map((w) => ({ text: w.word.trim(), startMs: offsetMs + Math.round(w.start * 1000), endMs: offsetMs + Math.round(w.end * 1000) })).filter((w) => w.text);
+}
+
+async function youtubeTranscript(body) {
+  const id = typeof body.videoId === "string" ? body.videoId.trim() : "";
+  if (!/^[A-Za-z0-9_-]{11}$/.test(id)) throw new Error("invalid_video");
+  const vocabulary = typeof body.vocabulary === "string" ? body.vocabulary : "";
+  const start = Number.isFinite(body.startMs) ? Number(body.startMs) : 0;
+  const end = Number.isFinite(body.endMs) && Number(body.endMs) > start ? Number(body.endMs) : null;
+  const temp = await mkdtemp(join(tmpdir(), "alfredd-transcript-"));
+  try {
+    const direct = (await runYtdlp(["-g", "-f", "bestaudio[ext=m4a]/bestaudio", "--no-warnings", `https://www.youtube.com/watch?v=${id}`])).trim().split(/\r?\n/).find(Boolean);
+    if (!direct) throw new Error("yt-dlp nÃ£o retornou Ã¡udio");
+    const proxyArgs = youtubeProxy ? ["-http_proxy", youtubeProxy] : [];
+    const range = start > 0 || end != null ? ["-ss", String(start / 1000), ...(end != null ? ["-to", String(end / 1000)] : [])] : [];
+    const pattern = join(temp, "part%03d.mp3");
+    await run(ffmpeg, ["-hide_banner", "-loglevel", "error", "-y", ...proxyArgs, ...range, "-i", direct, "-vn", "-ac", "1", "-ar", "16000", "-c:a", "libmp3lame", "-b:a", "32k", "-f", "segment", "-segment_time", "300", "-reset_timestamps", "1", pattern]);
+    const files = (await readdir(temp)).filter((name) => name.endsWith(".mp3")).sort();
+    const words = [];
+    for (let i = 0; i < files.length; i++) words.push(...await transcribeGroq(join(temp, files[i]), start + i * 300_000, vocabulary));
+    if (!words.length) throw new Error("Nenhuma palavra foi transcrita");
+    return { source: { platform: "youtube", videoId: id }, method: "whisper", language: "pt", durationMs: (end ?? words.at(-1).endMs), words, lines: transcriptLines(words), chunks: transcriptChunks(words), createdAt: new Date().toISOString() };
+  } finally {
+    await rm(temp, { recursive: true, force: true });
+  }
 }
 function range(value, size) {
   if (!value) return { start: 0, end: size - 1, status: 200 };
@@ -185,6 +274,10 @@ async function handle(req, res) {
   const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
   if (url.pathname === "/health") return sendJson(res, 200, { ok: true, service: "media-worker" });
   if (secret && req.headers.authorization !== `Bearer ${secret}`) return sendJson(res, 401, { error: "unauthorized" });
+  if (req.method === "POST" && url.pathname === "/youtube/transcript") {
+    try { return sendJson(res, 200, await youtubeTranscript(await readRequestBody(req))); }
+    catch (error) { console.error("[transcript] failed", error); return sendJson(res, 502, { error: error instanceof Error ? error.message : "transcript_failed" }); }
+  }
   if (req.method !== "GET") return sendJson(res, 405, { error: "method_not_allowed" });
   const startedAt = Date.now();
   console.log(`[request] ${req.method} ${url.pathname}`);

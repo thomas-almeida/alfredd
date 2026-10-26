@@ -6,7 +6,7 @@ import 'server-only';
 import { spawn } from 'node:child_process';
 import { parseTwitchUrl, pickClipQuality, pickVariant, resolveClip, resolveVod } from '@/lib/twitch/media';
 import { mediaWorkerUrl } from '@/lib/media-worker';
-import { TranscriptError, type TranscriptSource } from './types.ts';
+import { TranscriptError, type Transcript, type TranscriptSource } from './types.ts';
 
 const YT_ID = /^[A-Za-z0-9_-]{11}$/;
 
@@ -82,6 +82,25 @@ async function youtubeAudioUrlFromWorker(worker: string, videoId: string): Promi
     if (error instanceof TranscriptError) throw error;
     throw new TranscriptError(`Não foi possível obter áudio pelo worker: ${error instanceof Error ? error.message : String(error)}`, 502, 'media_worker_audio');
   }
+}
+
+export async function youtubeTranscriptFromWorker(videoId: string, vocabulary?: string): Promise<Transcript> {
+  const worker = mediaWorkerUrl();
+  if (!worker) throw new TranscriptError('MEDIA_WORKER_URL não configurada', 500, 'media_worker_missing');
+  const headers = new Headers({ 'Content-Type': 'application/json' });
+  const secret = process.env.MEDIA_WORKER_SECRET;
+  if (secret) headers.set('Authorization', `Bearer ${secret}`);
+  const response = await fetch(`${worker}/youtube/transcript`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ videoId, vocabulary }),
+    cache: 'no-store',
+  });
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw new TranscriptError(`Worker de transcrição HTTP ${response.status}: ${body.slice(-300)}`, 502, 'media_worker_transcript');
+  }
+  return (await response.json()) as Transcript;
 }
 
 /** Entrada para o ffmpeg (URL ou arquivo) + janela de tempo, por origem. */
