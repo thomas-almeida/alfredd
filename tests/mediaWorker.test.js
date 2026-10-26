@@ -45,6 +45,7 @@ test("contrato de deploy mantém Vercel e Render separados", async () => {
   assert.match(dockerfile, /yt-dlp\[default\]/);
   assert.match(dockerfile, /bgutil-ytdlp-pot-provider/);
   assert.match(dockerfile, /BGUTIL_VERSION/);
+  assert.match(dockerfile, /bgutil-ytdlp-pot-provider==\$\{BGUTIL_VERSION\}/);
   assert.match(await readFile(join(root, "media-worker", "start.sh"), "utf8"), /port 4416/);
   const server = await readFile(join(root, "media-worker", "src", "server.js"), "utf8");
   assert.match(server, /--js-runtimes.*deno/);

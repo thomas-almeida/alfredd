@@ -2,7 +2,7 @@ FROM node:22-bookworm-slim
 ARG BGUTIL_VERSION=2.0.2
 RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg python3 python3-venv ca-certificates curl unzip git \
   && python3 -m venv /opt/yt-dlp \
-  && /opt/yt-dlp/bin/pip install --no-cache-dir "yt-dlp[default]" bgutil-ytdlp-pot-provider \
+  && /opt/yt-dlp/bin/pip install --no-cache-dir "yt-dlp[default]" "bgutil-ytdlp-pot-provider==${BGUTIL_VERSION}" \
   && git clone --depth 1 --branch ${BGUTIL_VERSION} https://github.com/Brainicism/bgutil-ytdlp-pot-provider.git /opt/bgutil-ytdlp-pot-provider \
   && cd /opt/bgutil-ytdlp-pot-provider/server \
   && npm ci \
