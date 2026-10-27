@@ -151,8 +151,8 @@ export function ClipPreviewModal({
           </div>
 
           <div className="flex items-center gap-3 mt-4">
-            <Button variant="primary" onClick={() => doSave(true)} disabled={(pending && !limited) || saved}>
-              {saved ? "Editando…" : pending && !limited && saveMode === "editor" ? "Salvando…" : "Editar Clipe"}
+            <Button variant="primary" onClick={() => doSave(true)} disabled={(pending && !limited) || (saved && saveMode === "editor")}>
+              {pending && !limited && saveMode === "editor" ? "Salvando…" : "Editar Clipe"}
             </Button>
             <Button variant="secondary" onClick={() => doSave(false)} disabled={(pending && !limited) || saved}>
               {saved ? "Salvo" : pending && !limited && saveMode === "library" ? "Salvando…" : "Salvar na Biblioteca"}
