@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { after, test } from "node:test";
 import { spawn } from "node:child_process";
-import { readFile } from "node:fs/promises";
+import { access, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -91,6 +91,5 @@ test("contrato de deploy mantém Vercel e Render separados", async () => {
   const editor = await readFile(join(root, "src", "features", "editor", "ClipEditor.tsx"), "utf8");
   assert.match(editor, /videoId=\$\{encodeURIComponent\(youtube\.videoId\)\}&audio=0/);
   assert.match(editor, /const progressUrl = undefined/);
-  const vercel = JSON.parse(await readFile(join(root, "vercel.json"), "utf8"));
-  assert.deepEqual(vercel.crons, [{ path: "/api/cron/monitorings", schedule: "*/5 * * * *" }]);
+  await assert.rejects(access(join(root, "vercel.json")));
 });
