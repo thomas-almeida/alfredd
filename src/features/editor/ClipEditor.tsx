@@ -285,6 +285,7 @@ function EditorBody({
   const [exported, setExported] = useState(ingest.status === "exportado");
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [captionsEnabled, setCaptionsEnabled] = useState(false);
+  const [transcriptOpen, setTranscriptOpen] = useState(true);
   // Transcrição recortada e em tempos relativos ao arquivo servido.
   const windowStart = transcriptWindow?.startMs;
   const windowEnd = transcriptWindow?.endMs;
@@ -489,8 +490,38 @@ function EditorBody({
         </p>
       )}
 
-      <div className="grid grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(250px,300px)] gap-5 items-start max-[1200px]:grid-cols-[280px_minmax(0,1fr)] max-[700px]:grid-cols-1">
-        <aside className="sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto max-[700px]:static max-[700px]:max-h-none">
+      {!transcriptOpen && (
+        <div className="flex">
+          <button
+            type="button"
+            onClick={() => setTranscriptOpen(true)}
+            aria-expanded={false}
+            aria-controls="editor-transcript-sidebar"
+            className="inline-flex items-center gap-1.5 rounded-md border border-border bg-surface px-2.5 py-1.5 text-xs text-muted transition-colors hover:bg-surface-hover hover:text-fg"
+          >
+            <Icon name="chevron-right" width={15} height={15} />
+            Mostrar transcrição
+          </button>
+        </div>
+      )}
+
+      <div className={`grid gap-5 items-start max-[700px]:grid-cols-1 ${transcriptOpen
+        ? "grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(250px,300px)] max-[1200px]:grid-cols-[280px_minmax(0,1fr)]"
+        : "grid-cols-[minmax(0,1fr)_minmax(250px,300px)] max-[1200px]:grid-cols-1"}`}>
+        {transcriptOpen && <aside id="editor-transcript-sidebar" className="sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto max-[700px]:static max-[700px]:max-h-none">
+          <div className="mb-2 flex justify-end">
+            <button
+              type="button"
+              onClick={() => setTranscriptOpen(false)}
+              aria-expanded={true}
+              aria-controls="editor-transcript-sidebar"
+              className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs text-muted transition-colors hover:bg-surface-hover hover:text-fg"
+              title="Ocultar transcrição"
+            >
+              <Icon name="chevron-right" width={15} height={15} className="rotate-180" />
+              Ocultar
+            </button>
+          </div>
           <TranscriptPanel
             videoRef={videoRef}
             sourceUrl={transcriptUrl}
@@ -503,7 +534,7 @@ function EditorBody({
             tall
             onTrim={(trim) => useEditor.getState().setSegments([{ start: trim.startMs / 1000, end: trim.endMs / 1000 }])}
           />
-        </aside>
+        </aside>}
 
         <div className="flex flex-col gap-3">
           <div
@@ -582,7 +613,7 @@ function EditorBody({
           </div>
         </div>
 
-        <div className="flex flex-col gap-4 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto max-[1200px]:col-span-2 max-[700px]:col-span-1 max-[700px]:static max-[700px]:max-h-none">
+        <div className={`flex flex-col gap-4 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto ${transcriptOpen ? "max-[1200px]:col-span-2" : "max-[1200px]:col-span-1"} max-[700px]:col-span-1 max-[700px]:static max-[700px]:max-h-none`}>
           <VerticalPreview videoRef={videoRef} srcW={src.w} srcH={src.h} transcript={editorTranscript} captionsEnabled={captionsEnabled} />
           <FocusLayoutPicker srcW={src.w} srcH={src.h} />
           <KeyframeControls />
