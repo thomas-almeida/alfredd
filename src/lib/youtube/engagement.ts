@@ -14,6 +14,14 @@ import { parseChannel, parseVideo, type ChannelRef } from "./parse.ts";
 
 export type Tier = "alto" | "medio" | "baixo" | "indefinido";
 export type Thresholds = { high: number; medium: number }; // em %
+export const CONSERVATIVE_RPM_USD = 0.25;
+export type ValidationStatus = "validated" | "not_validated" | "insufficient_data";
+export type VideoValidation = {
+  status: ValidationStatus;
+  viewsRatio: number | null;
+  erRatio: number | null;
+  reasons: string[];
+};
 
 /** Faixas padrão: ≥5 alto, 2–5 médio, <2 baixo. Ajuste por nicho se quiser. */
 export const DEFAULT_THRESHOLDS: Thresholds = { high: 5, medium: 2 };
@@ -38,6 +46,11 @@ export type VideoEngagement = {
   viewsPerHour: number;
   tier: Tier;
   flags: string[];
+  estimatedRevenueUsd: number;
+  estimatedRevenueBrl?: number | null;
+  usdBrlRate?: number | null;
+  revenueRateUpdatedAt?: string | null;
+  validation?: VideoValidation;
 };
 
 export type GroupStats = {
@@ -68,6 +81,10 @@ export type ChannelEngagement = {
   videos: VideoEngagement[];
   quotaUnits: number;
   resolvedVia: ChannelRef["kind"] | "video";
+  estimatedRevenueUsd: number;
+  estimatedRevenueBrl?: number | null;
+  usdBrlRate?: number | null;
+  revenueRateUpdatedAt?: string | null;
 };
 
 // ───────────────────────── utilidades ─────────────────────────
@@ -79,6 +96,24 @@ const pct = (part: number, whole: number) => (whole > 0 ? round2((part / whole) 
 export function tierOf(er: number | null, t: Thresholds = DEFAULT_THRESHOLDS): Tier {
   if (er === null) return "indefinido";
   return er >= t.high ? "alto" : er >= t.medium ? "medio" : "baixo";
+}
+
+export function validateVideo(
+  video: Pick<VideoEngagement, "ageHours" | "views" | "er">,
+  channelAvgViews: number,
+  channelMedianEr: number | null,
+): VideoValidation {
+  const reasons: string[] = [];
+  if (video.ageHours < 48) reasons.push("video_recente");
+  if (channelAvgViews <= 0 || channelMedianEr === null || video.er === null) {
+    return { status: "insufficient_data", viewsRatio: null, erRatio: null, reasons: [...reasons, "sem_base_comparavel"] };
+  }
+  const viewsRatio = round2(video.views / channelAvgViews);
+  const erRatio = round2(video.er / Math.max(channelMedianEr, 0.01));
+  if (viewsRatio < 1.25) reasons.push("views_nao_superam_media");
+  if (erRatio < 1.25) reasons.push("er_nao_supera_mediana");
+  if (video.ageHours < 48) return { status: "insufficient_data", viewsRatio, erRatio, reasons };
+  return { status: reasons.length ? "not_validated" : "validated", viewsRatio, erRatio, reasons };
 }
 
 /** ISO 8601 do YouTube (PT1H2M3S, P1DT2H) → segundos. */
@@ -140,6 +175,7 @@ export function computeVideoEngagement(
     viewsPerHour: round2(views / Math.max(ageHours, 1)),
     tier: tierOf(er, opts.thresholds),
     flags,
+    estimatedRevenueUsd: round2((views / 1000) * CONSERVATIVE_RPM_USD),
   };
 }
 
@@ -283,7 +319,7 @@ export async function getChannelEngagement(input: string, opts: ChannelOptions =
   // 4) Agregados
   const t = opts.thresholds;
   const ranked = [...videos].sort((a, b) => (b.er ?? 0) - (a.er ?? 0));
-  return {
+  const channel: ChannelEngagement = {
     channelId: ch.id,
     title: ch.snippet.title,
     handle: ch.snippet.customUrl ?? null,
@@ -308,5 +344,13 @@ export async function getChannelEngagement(input: string, opts: ChannelOptions =
     videos,
     quotaUnits: quota.units,
     resolvedVia,
+    estimatedRevenueUsd: round2((num(ch.statistics.viewCount) ?? 0) / 1000 * CONSERVATIVE_RPM_USD),
   };
+  channel.videos = channel.videos.map((video) => ({
+    ...video,
+    validation: validateVideo(video, channel.all.avgViews, channel.all.erMedian),
+  }));
+  channel.best = channel.best ? channel.videos.find((video) => video.videoId === channel.best?.videoId) ?? null : null;
+  channel.worst = channel.worst ? channel.videos.find((video) => video.videoId === channel.worst?.videoId) ?? null : null;
+  return channel;
 }

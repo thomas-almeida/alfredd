@@ -7,7 +7,7 @@ import { Badge, type BadgeTone } from "@/components/ui/Badge";
 import { MetricTile } from "@/components/ui/MetricTile";
 import { cn } from "@/lib/cn";
 // Só tipos: o módulo de engajamento roda no servidor (usa a chave da API).
-import type { ChannelEngagement, GroupStats, Tier, VideoEngagement } from "@/lib/youtube/engagement";
+import type { ChannelEngagement, GroupStats, Tier, ValidationStatus, VideoEngagement } from "@/lib/youtube/engagement";
 import { FavoriteButton } from "@/features/favorites/FavoriteButton";
 import { ErHistoryChart } from "./ErHistoryChart";
 import { SaveYoutubeClipButton } from "./SaveYoutubeClipButton";
@@ -70,6 +70,17 @@ function fmtDuration(total: number | null): string {
 function TierBadge({ tier }: { tier: Tier }) {
   const t = TIERS[tier];
   return <Badge tone={t.tone}>{t.label}</Badge>;
+}
+
+const fmtMoney = (v: number | null | undefined) =>
+  v == null ? "—" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const fmtUsd = (v: number) => `US$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+function ValidationBadge({ status }: { status?: ValidationStatus }) {
+  if (!status) return null;
+  if (status === "validated") return <Badge tone="accent">Validado</Badge>;
+  if (status === "insufficient_data") return <Badge tone="neutral">Aguardando base</Badge>;
+  return <Badge tone="neutral">Não validado</Badge>;
 }
 
 export function YoutubeEngagement({ initialChannel, initialVideo }: { initialChannel?: string; initialVideo?: string }) {
@@ -253,7 +264,10 @@ function VideoPanel({ v }: { v: VideoEngagement }) {
           <div className="flex gap-4 items-start min-w-0 max-[860px]:flex-col">
             <Thumb src={v.thumbnailUrl} className="w-48 aspect-video rounded-md" />
             <div className="min-w-0">
-              <Badge tone="info">{v.isShortLikely ? "Short" : "Vídeo longo"}</Badge>
+              <div className="flex flex-wrap gap-2">
+                <Badge tone="info">{v.isShortLikely ? "Short" : "Vídeo longo"}</Badge>
+                <ValidationBadge status={v.validation?.status} />
+              </div>
               <h2 className="mt-2 text-[15px] font-semibold text-fg break-words">
                 <a href={v.url} target="_blank" rel="noreferrer" className="hover:underline">
                   {v.title}
@@ -281,6 +295,19 @@ function VideoPanel({ v }: { v: VideoEngagement }) {
             note="média desde a publicação"
           />
         </MetricStrip>
+
+        <div className="mt-4 rounded-md border border-border bg-surface-2/50 px-4 py-3">
+          <div className="flex items-center justify-between gap-4 max-[600px]:flex-col max-[600px]:items-start">
+            <div>
+              <div className="text-[12px] text-muted">Receita estimada</div>
+              <div className="mt-1 text-[20px] font-semibold text-fg tabular-nums">{fmtMoney(v.estimatedRevenueBrl)}</div>
+            </div>
+            <div className="text-right text-[12px] text-subtle max-[600px]:text-left">
+              <div>{fmtUsd(v.estimatedRevenueUsd)} · base de US$ 0,25 / mil views</div>
+              <div>Estimativa, não confirma monetização</div>
+            </div>
+          </div>
+        </div>
 
         <div className="mt-5 border-t border-border pt-4">
           <SaveYoutubeClipButton videoId={v.videoId} title={v.title} channelTitle={v.channelTitle} thumbnailUrl={v.thumbnailUrl} durationSeconds={v.durationSeconds} />
@@ -360,6 +387,18 @@ function ChannelPanel({ c }: { c: ChannelEngagement }) {
             note={`últimos ${c.all.videos} vídeos`}
           />
         </MetricStrip>
+        <div className="mt-4 rounded-md border border-border bg-surface-2/50 px-4 py-3">
+          <div className="flex items-center justify-between gap-4 max-[600px]:flex-col max-[600px]:items-start">
+            <div>
+              <div className="text-[12px] text-muted">Receita estimada do canal</div>
+              <div className="mt-1 text-[20px] font-semibold text-fg tabular-nums">{fmtMoney(c.estimatedRevenueBrl)}</div>
+            </div>
+            <div className="text-right text-[12px] text-subtle max-[600px]:text-left">
+              <div>{fmtUsd(c.estimatedRevenueUsd)} · base de US$ 0,25 / mil views</div>
+              <div>Estimativa conservadora, não confirma monetização{c.usdBrlRate ? ` · câmbio ${c.usdBrlRate.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}/US$` : ""}</div>
+            </div>
+          </div>
+        </div>
       </Card>
 
       <Card>
@@ -409,6 +448,8 @@ function ChannelPanel({ c }: { c: ChannelEngagement }) {
                   <th className="py-2 pr-4 font-normal text-right">Curtidas</th>
                   <th className="py-2 pr-4 font-normal text-right">Comentários</th>
                   <th className="py-2 pr-4 font-normal text-right">ER</th>
+                  <th className="py-2 pr-4 font-normal text-right">Receita est.</th>
+                  <th className="py-2 pr-4 font-normal">Validação</th>
                   <th className="py-2 font-normal">Faixa</th>
                 </tr>
               </thead>
@@ -430,6 +471,8 @@ function ChannelPanel({ c }: { c: ChannelEngagement }) {
                     <td className="py-2 pr-4 text-right tabular-nums">{fmtCompact(v.likes)}</td>
                     <td className="py-2 pr-4 text-right tabular-nums">{fmtCompact(v.comments)}</td>
                     <td className="py-2 pr-4 text-right tabular-nums font-semibold">{fmtEr(v.er)}</td>
+                    <td className="py-2 pr-4 text-right tabular-nums">{fmtMoney(v.estimatedRevenueBrl)}</td>
+                    <td className="py-2 pr-4"><ValidationBadge status={v.validation?.status} /></td>
                     <td className="py-2">
                       <TierBadge tier={v.tier} />
                     </td>
@@ -501,10 +544,14 @@ function HighlightCard({ title, v }: { title: string; v: VideoEngagement }) {
           <div className="mt-1 flex items-center gap-2">
             <span className="text-[15px] font-bold text-fg tabular-nums">{fmtEr(v.er)}</span>
             <TierBadge tier={v.tier} />
+            <ValidationBadge status={v.validation?.status} />
           </div>
           <p className="mt-1 text-[12px] text-subtle">
-            {fmtCompact(v.views)} views · há {fmtAge(v.ageHours)}
+            {fmtCompact(v.views)} views · {fmtMoney(v.estimatedRevenueBrl)} · há {fmtAge(v.ageHours)}
           </p>
+          {v.validation?.status === "validated" && (
+            <p className="mt-1 text-[11px] text-accent">{v.validation.viewsRatio}× a média de views · {v.validation.erRatio}× o ER mediano</p>
+          )}
         </div>
       </div>
     </Card>

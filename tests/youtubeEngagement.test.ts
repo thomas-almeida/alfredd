@@ -7,6 +7,7 @@ import {
   getVideoEngagement,
   isoDurationToSeconds,
   tierOf,
+  validateVideo,
 } from "../src/lib/youtube/engagement.ts";
 import type { YtVideo } from "../src/lib/youtube/api.ts";
 
@@ -125,6 +126,7 @@ test("computeVideoEngagement calcula ER e flags", () => {
   assert.equal(e.isShortLikely, false);
   assert.equal(e.ageHours, 240);
   assert.equal(e.viewsPerHour, 4.17);
+  assert.equal(e.estimatedRevenueUsd, 0.25);
   assert.deepEqual(e.flags, []);
 
   const hidden = computeVideoEngagement(VIDEOS[4]!, { now: NOW });
@@ -166,6 +168,16 @@ test("getChannelEngagement agrega, separa Shorts e pula casos ruins", async () =
   assert.equal(c.worst?.videoId, "bbbbbbbbbbb");
   assert.equal(c.quotaUnits, 3); // channels + playlistItems + videos
   assert.equal(c.resolvedVia, "id");
+  assert.equal(c.estimatedRevenueUsd, 1.15);
+  assert.equal(c.videos[0]?.validation?.status, "not_validated");
+  assert.equal(c.videos[1]?.validation?.status, "not_validated");
+});
+
+test("validateVideo exige maturidade e supera a base do canal", () => {
+  assert.equal(validateVideo({ ageHours: 72, views: 1500, er: 5 }, 1000, 3).status, "validated");
+  assert.equal(validateVideo({ ageHours: 24, views: 1500, er: 5 }, 1000, 3).status, "insufficient_data");
+  assert.equal(validateVideo({ ageHours: 72, views: 1000, er: 5 }, 1000, 3).status, "not_validated");
+  assert.equal(validateVideo({ ageHours: 72, views: 1500, er: null }, 1000, 3).status, "insufficient_data");
 });
 
 test("getChannelEngagement aceita link de vídeo como entrada", async () => {

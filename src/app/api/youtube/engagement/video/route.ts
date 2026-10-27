@@ -2,6 +2,7 @@ import { after, NextResponse } from "next/server";
 import { getSession } from "@/lib/auth";
 import { getVideoEngagement, YouTubeError } from "@/lib/youtube";
 import { recordSnapshot } from "@/lib/youtube/snapshots";
+import { getUsdBrlRate } from "@/lib/finance/exchange-rate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,6 +16,10 @@ export async function GET(req: Request) {
   const input = new URL(req.url).searchParams.get("url") ?? "";
   try {
     const data = await getVideoEngagement(input);
+    const exchange = await getUsdBrlRate();
+    data.estimatedRevenueBrl = exchange ? Number((data.estimatedRevenueUsd * exchange.rate).toFixed(2)) : null;
+    data.usdBrlRate = exchange?.rate ?? null;
+    data.revenueRateUpdatedAt = exchange?.updatedAt ?? null;
     after(() =>
       recordSnapshot(
         "video",
