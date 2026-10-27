@@ -1,10 +1,8 @@
 import Link from "next/link";
-import { ClipScoreBadge } from "./ClipScoreBadge";
 import { Badge } from "@/components/ui/Badge";
 import { clipThumb, timeAgo, formatViews, formatDuration } from "@/lib/twitch/format";
 import { Icon } from "@/components/ui/Icon";
 import { BroadcasterTag } from "./BroadcasterTag";
-import type { ClipScoreStatus } from "@/lib/supabase/database.types";
 
 export interface ClipCardData {
   twitchId: string;
@@ -20,7 +18,7 @@ export interface ClipCardData {
   url?: string | null;
   /** Canal classificado como adulto — embed exige login na Twitch. */
   isMature?: boolean;
-  score?: { value: number | null; status: ClipScoreStatus };
+  isSaved?: boolean;
 }
 
 const cardCls =
@@ -34,10 +32,11 @@ export function ClipCard({
   clip: ClipCardData;
   /** Se fornecido, o card vira botão e chama onSelect (ex.: abrir preview). */
   onSelect?: (clip: ClipCardData) => void;
-  /** Vitrine de mais vistos: mostra selo "Em alta" em vez do ClipScore. */
+  /** Vitrine de mais vistos: destaca os clipes em alta. */
   trending?: boolean;
 }) {
   const thumb = clipThumb(clip.thumbnailUrl);
+  const isNew = new Date(clip.createdAt).toDateString() === new Date().toDateString();
 
   const inner = (
     <>
@@ -72,14 +71,11 @@ export function ClipCard({
           </span>
         </div>
         <div className="mt-1">
-          {trending ? (
-            <Badge tone="accent">Em alta</Badge>
-          ) : (
-            <ClipScoreBadge
-              value={clip.score?.value ?? null}
-              status={clip.score?.status ?? "insuficiente"}
-            />
-          )}
+          <div className="flex flex-wrap gap-2">
+            {trending && <Badge tone="accent">Em alta</Badge>}
+            {isNew && <Badge tone="info">NOVO</Badge>}
+            {clip.isSaved && <Badge tone="neutral">Salvo</Badge>}
+          </div>
         </div>
       </div>
     </>

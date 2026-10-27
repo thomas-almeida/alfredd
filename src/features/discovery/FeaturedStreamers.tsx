@@ -91,7 +91,6 @@ async function loadRecentClips(users: Streamer[]): Promise<ClipCardData[]> {
             viewCount: c.view_count,
             durationSeconds: c.duration,
             createdAt: c.created_at,
-            score: { value: null, status: "insuficiente" as const },
           }));
       } catch {
         return [];

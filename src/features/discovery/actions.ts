@@ -22,7 +22,6 @@ export async function lookupClip(slug: string): Promise<ClipCardData | null> {
       durationSeconds: c.duration,
       createdAt: c.created_at,
       url: c.url,
-      score: { value: null, status: "insuficiente" },
     };
   } catch {
     return null;

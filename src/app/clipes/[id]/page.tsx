@@ -4,7 +4,6 @@ import { Card } from "@/components/ui/Card";
 import { MetricTile } from "@/components/ui/MetricTile";
 import { ClipPlayer } from "@/features/clips/ClipPlayer";
 import { ClipActions } from "@/features/clips/ClipActions";
-import { ClipScoreBadge } from "@/features/clips/ClipScoreBadge";
 import { twitch } from "@/lib/twitch/client";
 import { formatViews, formatDuration, timeAgo } from "@/lib/twitch/format";
 
@@ -69,7 +68,6 @@ export default async function ClipePage({
       <PageHeader
         title={clip.title || "Sem título"}
         subtitle={`Por ${clip.broadcaster_name}`}
-        badges={<ClipScoreBadge value={null} status="insuficiente" />}
       />
 
       <div className="grid grid-cols-[1fr_300px] gap-5 items-start max-[860px]:grid-cols-1">
@@ -88,11 +86,6 @@ export default async function ClipePage({
           <MetricTile value={formatViews(clip.view_count)} label="Visualizações" />
           <MetricTile value={formatDuration(clip.duration)} label="Duração" />
           <MetricTile value={timeAgo(clip.created_at)} label="Publicado" />
-          <MetricTile
-            value="—"
-            label="ClipScore"
-            note="Dados insuficientes: o score exige snapshots de views ao longo do tempo (Fase 2)."
-          />
         </Card>
       </div>
     </AppShell>

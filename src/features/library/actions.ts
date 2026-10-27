@@ -14,6 +14,25 @@ export interface SaveResult {
   quotaExceeded?: boolean;
 }
 
+/** Retorna os IDs Twitch que o usuário já salvou, para marcar cards de feeds. */
+export async function getSavedTwitchClipIds(twitchIds: string[]): Promise<string[]> {
+  const session = await getSession();
+  if (!session || twitchIds.length === 0) return [];
+  const supabase = await createClient();
+  const { data: clips } = await supabase
+    .from("clips")
+    .select("id, twitch_id")
+    .in("twitch_id", twitchIds);
+  const rows = (clips ?? []) as { id: string; twitch_id: string }[];
+  if (rows.length === 0) return [];
+  const { data: saved } = await supabase
+    .from("library_items")
+    .select("clip_id")
+    .in("clip_id", rows.map((clip) => clip.id));
+  const savedIds = new Set((saved ?? []).map((row) => row.clip_id));
+  return rows.filter((clip) => savedIds.has(clip.id)).map((clip) => clip.twitch_id);
+}
+
 export async function saveTwitchVod(input: {
   vodId: string;
   sourceUrl: string;

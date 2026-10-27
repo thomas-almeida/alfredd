@@ -15,15 +15,18 @@ import { formatViews, timeAgo } from "@/lib/twitch/format";
 export function ClipPreviewModal({
   clip,
   onClose,
+  onSaved,
 }: {
   clip: ClipCardData | null;
   onClose: () => void;
+  onSaved?: (twitchId: string) => void;
 }) {
   const { openAuth } = useAuthModal();
   const router = useRouter();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [saveMode, setSaveMode] = useState<"library" | "editor" | null>(null);
   const [limited, setLimited] = useState(false);
 
   const clipKey = clip?.twitchId ?? null;
@@ -34,6 +37,7 @@ export function ClipPreviewModal({
   useEffect(() => {
     setMsg(null);
     setSaved(false);
+    setSaveMode(null);
     setLimited(false);
     if (!clipKey) return;
     function onKey(e: KeyboardEvent) {
@@ -50,16 +54,17 @@ export function ClipPreviewModal({
 
   if (!clip) return null;
 
-  function doSave() {
+  function doSave(openEditor: boolean) {
     if (!clip) return;
     const clipId = clip.twitchId;
     setMsg(null);
+    setSaveMode(openEditor ? "editor" : "library");
     start(async () => {
       const res = await saveClip(clipId);
       if (res.needsAuth) {
         openAuth({
           reason: "Crie sua conta para salvar e editar este clipe.",
-          onSuccess: () => doSave(),
+          onSuccess: () => doSave(openEditor),
         });
         return;
       }
@@ -69,8 +74,13 @@ export function ClipPreviewModal({
       }
       if (res.ok) {
         setSaved(true);
-        setMsg("Clipe salvo! Abrindo o editor…");
-        router.push(`/clipes/${clipId}/editor`);
+        onSaved?.(clipId);
+        if (openEditor) {
+          setMsg("Clipe salvo! Abrindo o editor…");
+          router.push(`/clipes/${clipId}/editor`);
+        } else {
+          setMsg(res.already ? "Já estava na sua biblioteca." : "Salvo na biblioteca!");
+        }
       } else {
         setMsg(res.error ?? "Não foi possível salvar.");
       }
@@ -105,7 +115,7 @@ export function ClipPreviewModal({
             watchUrl={clip.url}
             autoPlay={!pending && !saved}
           />
-          {((pending && !limited) || saved) && (
+          {((pending && !limited) || (saved && saveMode === "editor")) && (
             <div className="absolute inset-0 rounded-lg bg-black/70 backdrop-blur-[2px] flex flex-col items-center justify-center gap-4">
               <div className="w-11 h-11 rounded-full border-[3px] border-white/20 border-t-accent animate-spin" />
               <p className="text-[#e7e7ea] text-sm font-medium">
@@ -141,8 +151,11 @@ export function ClipPreviewModal({
           </div>
 
           <div className="flex items-center gap-3 mt-4">
-            <Button variant="primary" onClick={doSave} disabled={(pending && !limited) || saved}>
-              {saved ? "Abrindo editor…" : pending && !limited ? "Salvando…" : "Salvar e Editar Clip"}
+            <Button variant="primary" onClick={() => doSave(true)} disabled={(pending && !limited) || saved}>
+              {saved ? "Editando…" : pending && !limited && saveMode === "editor" ? "Salvando…" : "Editar Clipe"}
+            </Button>
+            <Button variant="secondary" onClick={() => doSave(false)} disabled={(pending && !limited) || saved}>
+              {saved ? "Salvo" : pending && !limited && saveMode === "library" ? "Salvando…" : "Salvar na Biblioteca"}
             </Button>
             <a
               href={clip.url ?? `https://clips.twitch.tv/${clip.twitchId}`}

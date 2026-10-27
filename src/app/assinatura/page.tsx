@@ -8,7 +8,7 @@ export const metadata = { title: "Assinatura" };
 
 const free = [
   "Pesquisa e navegação sem login",
-  "ClipScore básico",
+  "Busca e organização de clipes",
   "Favoritos ilimitados de jogos e criadores",
   "5 clipes salvos no total",
 ];
@@ -28,7 +28,6 @@ const highlights = [
 
 const compare: [string, string | boolean, string | boolean][] = [
   ["Busca de jogos e streamers", true, true],
-  ["ClipScore", "Básico", "Completo"],
   ["Jogos favoritos", "Ilimitado", "Ilimitado"],
   ["Criadores favoritos", "Ilimitado", "Ilimitado"],
   ["Clipes salvos", "5", "Ilimitado"],

@@ -71,7 +71,6 @@ export default async function JogoPage({
       viewCount: c.view_count,
       durationSeconds: c.duration,
       createdAt: c.created_at,
-      score: { value: null, status: "insuficiente" as const },
     }));
 
     if (sort === "recentes") {
