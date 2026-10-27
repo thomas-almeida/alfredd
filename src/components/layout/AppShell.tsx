@@ -34,8 +34,10 @@ export async function AppShell({
   let favGames: SidebarGame[] = [];
   if (session) {
     const supabase = await createClient();
-    const [lib, favs, ytFavs, gameFavs] = await Promise.all([
+    const [lib, savedYoutubes, savedVods, favs, ytFavs, gameFavs] = await Promise.all([
       supabase.from("library_items").select("id", { count: "exact", head: true }),
+      supabase.from("youtube_saved_videos").select("id", { count: "exact", head: true }),
+      supabase.from("twitch_saved_vods").select("id", { count: "exact", head: true }),
       supabase
         .from("favorites")
         .select("id, created_at, streamers(login, display_name, thumbnail_url)")
@@ -51,7 +53,7 @@ export async function AppShell({
         .eq("source_type", "game")
         .order("created_at", { ascending: false }),
     ]);
-    clipCount = lib.count ?? 0;
+    clipCount = (lib.count ?? 0) + (savedYoutubes.count ?? 0) + (savedVods.count ?? 0);
     const twitch = (favs.data ?? []).flatMap((row) => {
       const s = row.streamers as unknown as {
         login: string;
