@@ -27,7 +27,7 @@ const groqApiKey = process.env.GROQ_API_KEY?.trim() || "";
 const groqModel = process.env.TRANSCRIBE_MODEL?.trim() || "whisper-large-v3-turbo";
 const groqBaseUrl = (process.env.TRANSCRIBE_BASE_URL?.trim() || "https://api.groq.com/openai/v1").replace(/\/$/, "");
 const ttl = Number(process.env.MEDIA_CACHE_TTL_MS || 30 * 60_000);
-const ytdlpTimeoutMs = Number(process.env.YTDLP_TIMEOUT_MS || 30_000);
+const ytdlpTimeoutMs = Number(process.env.YTDLP_TIMEOUT_MS || 120_000);
 const cacheDir = mkdir(join(tmpdir(), "alfredd-media"), { recursive: true }).then(() => join(tmpdir(), "alfredd-media"));
 const pending = new Map();
 const progress = new Map();
@@ -230,7 +230,10 @@ async function youtube(url) {
   const id = url.searchParams.get("videoId");
   if (!id) throw new Error("invalid_video");
   if (url.searchParams.get("audio") === "0") {
-    const format = `best[ext=mp4][height<=${process.env.YOUTUBE_MEDIA_MAX_HEIGHT || "480"}]/best`;
+    // O formato 18 é um MP4 progressivo leve (vídeo + áudio). Preferi-lo
+    // evita que o preview dependa de manifest/DASH, mais sensível a proxies.
+    const maxHeight = process.env.YOUTUBE_MEDIA_MAX_HEIGHT || "360";
+    const format = `18/best[ext=mp4][height<=${maxHeight}]/best[height<=${maxHeight}]/best`;
     const key = `youtube-direct:${id}:${format}`;
     return cachedFile(key, async (file) => {
       await runYtdlp(["-f", format, "--no-playlist", "--no-part", "--force-overwrites", "--no-warnings", "-o", file, `https://www.youtube.com/watch?v=${id}`]);
