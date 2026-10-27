@@ -91,5 +91,6 @@ test("contrato de deploy mantém Vercel e Render separados", async () => {
   const editor = await readFile(join(root, "src", "features", "editor", "ClipEditor.tsx"), "utf8");
   assert.match(editor, /videoId=\$\{encodeURIComponent\(youtube\.videoId\)\}&audio=0/);
   assert.match(editor, /const progressUrl = undefined/);
-  await assert.rejects(readFile(join(root, "vercel.json")), { code: "ENOENT" });
+  const vercel = JSON.parse(await readFile(join(root, "vercel.json"), "utf8"));
+  assert.deepEqual(vercel.crons, [{ path: "/api/cron/monitorings", schedule: "*/5 * * * *" }]);
 });
