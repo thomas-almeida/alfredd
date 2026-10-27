@@ -224,7 +224,7 @@ export default async function BibliotecaPage({
             {visible.length === 0 && savedVods.length === 0 ? (
               <p className="py-8 text-center text-sm text-muted">Nenhum clipe da Twitch com esses filtros.</p>
             ) : (
-              <div className="grid grid-cols-3 gap-2 max-[900px]:grid-cols-2 max-[600px]:grid-cols-1">
+              <div className="grid grid-cols-4 gap-2 max-[1200px]:grid-cols-3 max-[900px]:grid-cols-2 max-[600px]:grid-cols-1">
                 {visible.map((item) => <LibraryItemCard key={item.id} item={item} isPro={session.isPro} />)}
                 {savedVods.map((vod) => {
                   const key = `twitch_vod:${vod.vod_id}:${Math.round(vod.start_seconds * 1000)}-${Math.round(vod.end_seconds * 1000)}`;
@@ -245,7 +245,7 @@ export default async function BibliotecaPage({
             )}
           </> : (
             savedYoutubes.length === 0 ? <p className="py-8 text-center text-sm text-muted">Nenhum vídeo do YouTube salvo.</p> :
-            <div className="grid grid-cols-3 gap-2 max-[900px]:grid-cols-2 max-[600px]:grid-cols-1">
+            <div className="grid grid-cols-4 gap-2 max-[1200px]:grid-cols-3 max-[900px]:grid-cols-2 max-[600px]:grid-cols-1">
               {savedYoutubes.map((video) => {
                 const key = `youtube:${video.video_id}`;
                 const start = video.start_ms ?? 0;
