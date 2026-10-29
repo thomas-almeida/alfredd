@@ -100,7 +100,7 @@ async function loadRecentClips(users: Streamer[]): Promise<ClipCardData[]> {
   return perChannel.flat().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-export async function FeaturedStreamers() {
+export async function FeaturedStreamers({ hideHeader = false, showClips = true }: { hideHeader?: boolean; showClips?: boolean } = {}) {
   const users = await loadUsers();
   const youtubeChannels = await loadYouTubeChannels();
   const clips = await loadRecentClips([...users.values()]);
@@ -124,14 +124,14 @@ export async function FeaturedStreamers() {
 
   return (
     <section className="relative mt-4 w-full max-w-full overflow-hidden">
-      <div className="text-center mb-5">
+      {!hideHeader && <div className="text-center mb-5">
         <h2 className="text-2xl font-bold">Criadores em Destaque</h2>
         <p className="text-muted text-[13px] mt-2">
           Descubra canais da Twitch e do YouTube para encontrar o próximo corte.
         </p>
-      </div>
+      </div>}
       <FeaturedCreatorCarousel rows={rows} />
-      {clips.length > 0 && (
+      {showClips && clips.length > 0 && (
         <div className="mt-8 text-center">
           <div className="py-8">
             <h2 className="text-2xl font-bold">Para Clipar Agora</h2>

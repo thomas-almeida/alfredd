@@ -47,6 +47,7 @@
 }
 
 @layer base {
+
   *,
   *::before,
   *::after {
@@ -108,9 +109,15 @@
 
 /* Barra indeterminada dos loaders (EditorLoader). */
 @keyframes loader-slide {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(250%); }
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(250%);
+  }
 }
+
 .loader-indeterminate {
   animation: loader-slide 1.2s ease-in-out infinite;
 }
@@ -121,17 +128,37 @@
   initial-value: 0deg;
   inherits: false;
 }
+
 @keyframes streamer-spin {
-  to { --streamer-angle: 360deg; }
+  to {
+    --streamer-angle: 360deg;
+  }
 }
+
 @keyframes streamer-in {
-  from { opacity: 0; transform: translateY(14px) scale(0.97); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
+
 @keyframes streamer-float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-4px); }
+
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-4px);
+  }
 }
+
 .streamer-card {
   position: relative;
   display: block;
@@ -142,11 +169,13 @@
   animation: streamer-spin 4s linear infinite, streamer-in 0.5s ease-out both;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
+
 .streamer-card:hover {
   transform: translateY(-6px);
   box-shadow: 0 18px 40px -18px var(--c);
   animation-duration: 1.4s, 0.5s;
 }
+
 .streamer-card-inner {
   position: relative;
   overflow: hidden;
@@ -155,6 +184,7 @@
   padding: 1.5rem 1rem 1.25rem;
   text-align: center;
 }
+
 .streamer-glow {
   position: absolute;
   inset: -40% -20% auto;
@@ -163,7 +193,11 @@
   opacity: 0.12;
   transition: opacity 0.3s ease;
 }
-.streamer-card:hover .streamer-glow { opacity: 0.3; }
+
+.streamer-card:hover .streamer-glow {
+  opacity: 0.3;
+}
+
 .streamer-ring {
   position: absolute;
   inset: -4px;
@@ -172,6 +206,227 @@
   animation: streamer-float 3s ease-in-out infinite;
   filter: blur(1px);
 }
+
 @media (prefers-reduced-motion: reduce) {
-  .streamer-card, .streamer-ring { animation: none; }
+
+  .streamer-card,
+  .streamer-ring {
+    animation: none;
+  }
+}
+
+@keyframes lp-rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes lp-drift {
+
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(20px, -12px, 0) scale(1.08);
+  }
+}
+
+@keyframes lp-notification-marquee {
+  from {
+    transform: translateX(-50%);
+  }
+
+  to {
+    transform: translateX(0);
+  }
+}
+
+.lp-reveal {
+  animation: lp-rise .7s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.lp-delay-1 {
+  animation-delay: .08s;
+}
+
+.lp-delay-2 {
+  animation-delay: .16s;
+}
+
+.lp-delay-3 {
+  animation-delay: .24s;
+}
+
+.lp-notification-ticker {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 80;
+  overflow: hidden;
+  border-bottom: 1px solid rgba(180, 243, 74, .18);
+  background: rgba(9, 9, 10, .88);
+  backdrop-filter: blur(14px);
+}
+
+.lp-notification-track {
+  display: flex;
+  width: max-content;
+  min-width: 200%;
+  animation: lp-notification-marquee 34s linear infinite;
+}
+
+.lp-notification-item {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  padding: .7rem 2.25rem;
+  color: #d4d4d8;
+  font-size: .7rem;
+  font-style: italic;
+  font-weight: 600;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+
+.lp-notification-dot {
+  width: .4rem;
+  height: .4rem;
+  background: #b4f34a;
+  box-shadow: 0 0 12px rgba(180, 243, 74, .8);
+}
+
+.lp-orb {
+  position: absolute;
+  pointer-events: none;
+  border-radius: 999px;
+  filter: blur(70px);
+  opacity: .13;
+  animation: lp-drift 8s ease-in-out infinite;
+}
+
+.lp-orb-one {
+  width: 23rem;
+  height: 23rem;
+  top: -4rem;
+  left: 5%;
+  background: #b4f34a;
+}
+
+.lp-orb-two {
+  width: 20rem;
+  height: 20rem;
+  right: 2%;
+  bottom: 0;
+  background: #9147ff;
+  animation-delay: -3s;
+}
+
+.lp-button {
+  display: inline-flex;
+  align-items: center;
+  gap: .7rem;
+  border-radius: .7rem;
+  background: #b4f34a;
+  padding: .95rem 1.35rem;
+  color: #0a0a0b;
+  font-size: 16pt;
+  text-transform: uppercase;
+  font-weight: 900;
+  text-align: center;
+  transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
+  box-shadow: 0 12px 30px -14px rgba(180, 243, 74, .85);
+}
+
+.lp-button:hover {
+  transform: translateY(-2px);
+  background: #c5fb68;
+  box-shadow: 0 18px 36px -14px rgba(180, 243, 74, .9);
+}
+
+.lp-video-card {
+  position: relative;
+  aspect-ratio: 9 / 16;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: 1rem;
+  background: #171719;
+  box-shadow: 0 24px 80px -36px #000;
+  transition: transform .4s ease, border-color .4s ease;
+}
+
+.lp-video-card:hover {
+  transform: translateY(-8px) rotate(1deg);
+  border-color: rgba(180, 243, 74, .5);
+}
+
+.lp-video-card video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.lp-step {
+  min-height: 18rem;
+  border: 1px solid rgba(255, 255, 255, .08);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, .025);
+  transition: transform .3s ease, background .3s ease;
+}
+
+.lp-step:hover {
+  transform: translateY(-6px);
+  background: rgba(180, 243, 74, .06);
+}
+
+.lp-faq {
+  border-bottom: 1px solid rgba(255, 255, 255, .1);
+  padding: 1.25rem 0;
+}
+
+.lp-input {
+  display: block;
+  width: 100%;
+  border: 1px solid rgba(255, 255, 255, .12);
+  border-radius: .65rem;
+  background: rgba(255, 255, 255, .04);
+  padding: .8rem .9rem;
+  color: #fff;
+  outline: none;
+}
+
+.lp-input::placeholder {
+  color: #71717a;
+}
+
+.lp-input:focus {
+  border-color: #b4f34a;
+  box-shadow: 0 0 0 3px rgba(180, 243, 74, .12);
+}
+
+.lp-modal {
+  animation: lp-rise .25s ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .lp-reveal,
+  .lp-orb,
+  .lp-modal,
+  .lp-notification-track {
+    animation: none;
+  }
+
+  .lp-video-card:hover,
+  .lp-step:hover,
+  .lp-button:hover {
+    transform: none;
+  }
 }
