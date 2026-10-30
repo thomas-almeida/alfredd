@@ -1,6 +1,7 @@
 import { FeaturedStreamers } from "@/features/discovery/FeaturedStreamers";
 import { LandingPageCta } from "./LandingPageCta";
 import { LpNotificationTicker } from "./LpNotificationTicker";
+import { LpVideo } from "./LpVideo";
 
 const faqs = [
   ["Preciso ter o jogo para começar?", "Não. Você pode acompanhar os canais e encontrar os melhores momentos mesmo sem ter o jogo. A ideia é transformar o conteúdo validado em oportunidades de publicação."],
@@ -63,7 +64,7 @@ export function LandingPage() {
         <div className="lp-video-wall relative mx-auto mt-14 grid max-w-4xl grid-cols-3 gap-2 sm:gap-4 lg:mt-20">
           {["video-1.mp4", "video-2.mp4", "video-3.mp4"].map((video, index) => (
             <div key={video} className={`lp-video-card ${index === 1 ? "sm:-translate-y-5" : ""}`}>
-              <video src={`/lp-videos/${video}`} autoPlay muted loop playsInline preload="metadata" />
+              <LpVideo src={`/lp-videos/${video}`} label={["Momento encontrado", "Corte em destaque", "Pronto para publicar"][index] ?? "Vídeo em destaque"} />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
               <div className="absolute bottom-4 left-4 flex items-center gap-3 text-xs font-medium">
                 <span>{["2M de views", "657 Mil views", "834 Mil views"][index]}</span>

@@ -3,7 +3,7 @@
 import { FormEvent, useState } from "react";
 import { createPortal } from "react-dom";
 
-const GROUP_URL = process.env.NEXT_PUBLIC_WHATSAPP_GROUP_URL ?? "https://wa.me/5511989008294";
+const GROUP_URL = "https://chat.whatsapp.com/Hl7m99pNIsXBNrAQuDYjrZ";
 
 export function LeadCaptureModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [sending, setSending] = useState(false);

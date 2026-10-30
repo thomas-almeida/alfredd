@@ -1,6 +1,6 @@
 import Image from "next/image";
 
-const WHATSAPP_URL = "https://wa.me/5511989008294";
+const WHATSAPP_URL = "https://chat.whatsapp.com/Hl7m99pNIsXBNrAQuDYjrZ";
 
 /** Botão flutuante de suporte via WhatsApp, fixo no canto inferior direito. */
 export function SupportButton() {
