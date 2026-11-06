@@ -2,7 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SupportButton } from "@/components/layout/SupportButton";
 
-const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://alfredd.vercel.app";
+const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://clipesalfredd.top";
 
 export const metadata: Metadata = {
   metadataBase: new URL(appUrl),
