@@ -26,6 +26,7 @@ import {
   panesForPreset,
   type FocusPane,
   type FocusPreset,
+  type ImageOverlay,
 } from "@/lib/export/layouts";
 import { MOTION_PRESETS, applyMotionPreset, peakKeyframes, type MotionPreset } from "@/lib/editor/motion";
 
@@ -94,10 +95,15 @@ interface EditorStore extends EditorState {
   setActivePane: (id: string) => void;
   setPaneCrop: (id: string, rect: NRect) => void;
   setCaptionPosition: (position: CaptionPosition) => void;
+  addImageOverlay: (src: string, width: number, height: number) => void;
+  updateImageOverlay: (id: string, patch: Partial<Omit<ImageOverlay, "id" | "src">>) => void;
+  removeImageOverlay: (id: string) => void;
+  setImageOverlayEdge: (id: string, which: "start" | "end", value: number) => void;
 }
 
 let lastCommit = 0;
 let trackSeq = 0;
+let overlaySeq = 0;
 
 /** Duração padrão do trecho de uma faixa nova. */
 const NEW_TRACK_SECONDS = 3;
@@ -138,6 +144,7 @@ export const useEditor = create<EditorStore>((set, get) => {
     keyframes: [],
     activeTrack: 0,
     composition: undefined,
+    imageOverlays: [],
     activePaneId: "pane-1",
     duration: 0,
     currentTime: 0,
@@ -162,6 +169,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         keyframes: fitKeyframes(saved?.keyframes, layout),
         composition: saved?.composition?.length ? saved.composition : undefined,
         captionPosition: saved?.captionPosition ?? base.captionPosition,
+        imageOverlays: saved?.imageOverlays ?? [],
         activePaneId: saved?.composition?.[0]?.id ?? "pane-1",
         tracks: savedTracks.map((tr) => ({
           ...tr,
@@ -299,6 +307,47 @@ export const useEditor = create<EditorStore>((set, get) => {
       x: Math.min(1, Math.max(0, position.x)),
       y: Math.min(1, Math.max(0, position.y)),
     } }),
+    addImageOverlay: (src, width, height) => {
+      const duration = get().duration;
+      const maxWidth = 0.42;
+      const aspect = width > 0 && height > 0 ? width / height : 1;
+      const w = maxWidth;
+      const h = Math.min(0.42, w / aspect);
+      const start = get().currentTime;
+      const end = Math.min(duration, Math.max(start + MIN_SEGMENT, duration));
+      const overlay: ImageOverlay = {
+        id: `img-${++overlaySeq}`,
+        src,
+        start,
+        end,
+        x: 0.78,
+        y: 0.84,
+        width: w,
+        height: h,
+        opacity: 1,
+      };
+      commit({ imageOverlays: [...(get().imageOverlays ?? []), overlay] });
+    },
+    updateImageOverlay: (id, patch) => commit({
+      imageOverlays: (get().imageOverlays ?? []).map((item) => item.id === id ? {
+        ...item,
+        ...patch,
+        x: patch.x == null ? item.x : Math.min(1, Math.max(0, patch.x)),
+        y: patch.y == null ? item.y : Math.min(1, Math.max(0, patch.y)),
+        width: patch.width == null ? item.width : Math.min(1, Math.max(0.03, patch.width)),
+        height: patch.height == null ? item.height : Math.min(1, Math.max(0.03, patch.height)),
+        opacity: patch.opacity == null ? item.opacity : Math.min(1, Math.max(0, patch.opacity)),
+        start: patch.start == null ? item.start : Math.max(0, Math.min(item.end - MIN_SEGMENT, patch.start)),
+        end: patch.end == null ? item.end : Math.min(get().duration, Math.max(item.start + MIN_SEGMENT, patch.end)),
+      } : item),
+    }),
+    removeImageOverlay: (id) => commit({ imageOverlays: (get().imageOverlays ?? []).filter((item) => item.id !== id) }),
+    setImageOverlayEdge: (id, which, value) => {
+      const item = (get().imageOverlays ?? []).find((x) => x.id === id);
+      if (!item) return;
+      if (which === "start") get().updateImageOverlay(id, { start: value });
+      else get().updateImageOverlay(id, { end: value });
+    },
     setCrop: (key, rect) =>
       patchFraming((f) => {
         if (!f.keyframes?.length) return { crops: { ...f.crops, [key]: clampRect(rect) } };
@@ -363,6 +412,7 @@ export const useEditor = create<EditorStore>((set, get) => {
         tracks: [],
         composition: undefined,
         captionPosition: base.captionPosition,
+        imageOverlays: [],
       });
       set({ activeTrack: 0, activePaneId: "pane-1", currentTime: segments[0]!.start });
     },
@@ -383,8 +433,8 @@ export const useEditor = create<EditorStore>((set, get) => {
       set({ ...next, past: [...past, snapshot()], future: future.slice(1) });
     },
     snapshot: () => {
-      const { segments, layout, camPos, crops, audio, tracks, keyframes, composition, captionPosition } = get();
-      return { segments, layout, camPos, crops, keyframes: keyframes ?? [], audio: audio ?? null, tracks: tracks ?? [], composition: composition ?? [], captionPosition: captionPosition ?? { x: 0.5, y: 0.88 } };
+      const { segments, layout, camPos, crops, audio, tracks, keyframes, composition, captionPosition, imageOverlays } = get();
+      return { segments, layout, camPos, crops, keyframes: keyframes ?? [], audio: audio ?? null, tracks: tracks ?? [], composition: composition ?? [], captionPosition: captionPosition ?? { x: 0.5, y: 0.88 }, imageOverlays: imageOverlays ?? [] };
     },
   };
 });

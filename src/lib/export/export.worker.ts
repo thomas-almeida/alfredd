@@ -18,6 +18,7 @@ import {
   intersectSegments,
   segmentsTotal,
   compositionAt,
+  overlaysAt,
   outputSegments,
   type EditorState,
 } from "./layouts";
@@ -51,6 +52,12 @@ async function run({ sourceUrl, state, captions = [] }: ExportRequest) {
   const audio = await input.getPrimaryAudioTrack();
   const srcW = video.displayWidth;
   const srcH = video.displayHeight;
+  const overlayImages = new Map<string, ImageBitmap>();
+  for (const overlay of state.imageOverlays ?? []) {
+    const response = await fetch(overlay.src);
+    if (!response.ok) throw new Error("Não foi possível carregar a imagem da marca d’água.");
+    overlayImages.set(overlay.id, await createImageBitmap(await response.blob()));
+  }
 
   const canvas = new OffscreenCanvas(OUT_W, OUT_H);
   const g = canvas.getContext("2d");
@@ -97,6 +104,13 @@ async function run({ sourceUrl, state, captions = [] }: ExportRequest) {
           const d = pane.destination;
           g.drawImage(frame.canvas, c.sx, c.sy, c.sw, c.sh, d.x * OUT_W, d.y * OUT_H, d.w * OUT_W, d.h * OUT_H);
         }
+        for (const overlay of overlaysAt(state, frame.timestamp)) {
+          const image = overlayImages.get(overlay.id);
+          if (!image) continue;
+          g.globalAlpha = overlay.opacity;
+          g.drawImage(image, (overlay.x - overlay.width / 2) * OUT_W, (overlay.y - overlay.height / 2) * OUT_H, overlay.width * OUT_W, overlay.height * OUT_H);
+          g.globalAlpha = 1;
+        }
         const cue = captions.find((x) => frame.timestamp * 1000 >= x.startMs && frame.timestamp * 1000 < x.endMs);
         if (cue) drawCaption(g, cue.text, state.captionPosition);
         await videoSource.add(t, 1 / fps);
@@ -133,6 +147,7 @@ async function run({ sourceUrl, state, captions = [] }: ExportRequest) {
 
   const buffer = (output.target as BufferTarget).buffer;
   if (!buffer) throw new Error("Saída vazia.");
+  for (const image of overlayImages.values()) image.close();
   post({ type: "done", buffer, duration: length }, [buffer]);
 }
 

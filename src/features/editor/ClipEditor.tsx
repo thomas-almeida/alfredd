@@ -21,6 +21,8 @@ import {
   segmentIndexAt,
   slotsFor,
   compositionAt,
+  overlaysAt,
+  type ImageOverlay,
   type EditorState,
   type Framing,
   type Layout,
@@ -83,7 +85,7 @@ export type ExternalEditorInput = {
 type Phase = "ingest" | "project";
 
 const INGEST_ERRORS: Record<string, string> = {
-  too_long: "O clipe tem mais de 90 s, limite do MVP.",
+  too_long: "O clipe tem mais de 180 s, limite do MVP.",
   unauthenticated: "Entre na sua conta para editar clipes.",
   clip_not_found: "Clipe não encontrado na Twitch.",
 };
@@ -187,7 +189,7 @@ export function ClipEditor({
     let timer: ReturnType<typeof setTimeout> | undefined;
     let marked = ingest.status !== "novo";
     const unsub = useEditor.subscribe((s, prev) => {
-      if (s.segments === prev.segments && s.layout === prev.layout && s.camPos === prev.camPos && s.crops === prev.crops && s.keyframes === prev.keyframes && s.audio === prev.audio && s.tracks === prev.tracks && s.composition === prev.composition && s.captionPosition === prev.captionPosition) return;
+      if (s.segments === prev.segments && s.layout === prev.layout && s.camPos === prev.camPos && s.crops === prev.crops && s.keyframes === prev.keyframes && s.audio === prev.audio && s.tracks === prev.tracks && s.composition === prev.composition && s.captionPosition === prev.captionPosition && s.imageOverlays === prev.imageOverlays) return;
       clearTimeout(timer);
       setSaving("saving");
       timer = setTimeout(async () => {
@@ -615,6 +617,7 @@ function EditorBody({
 
         <div className={`flex flex-col gap-4 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto ${transcriptOpen ? "max-[1200px]:col-span-2" : "max-[1200px]:col-span-1"} max-[700px]:col-span-1 max-[700px]:static max-[700px]:max-h-none`}>
           <VerticalPreview videoRef={videoRef} srcW={src.w} srcH={src.h} transcript={editorTranscript} captionsEnabled={captionsEnabled} />
+          <ImageOverlayControls />
           <FocusLayoutPicker srcW={src.w} srcH={src.h} />
           <KeyframeControls />
           <MotionControls videoRef={videoRef} sourceUrl={ingest.sourceUrl} srcW={src.w} srcH={src.h} />
@@ -801,6 +804,9 @@ function VerticalPreview({
   const captionPosition = useEditor((s) => s.captionPosition ?? DEFAULT_CAPTION_POSITION);
   const setCaptionPosition = useEditor((s) => s.setCaptionPosition);
   const currentTime = useEditor((s) => s.currentTime);
+  const overlays = useEditor((s) => s.imageOverlays ?? []);
+  const updateImageOverlay = useEditor((s) => s.updateImageOverlay);
+  const imageCache = useRef(new Map<string, HTMLImageElement>());
   const currentLine = transcript?.lines.find((item, index) => {
     const nextStart = transcript.lines[index + 1]?.startMs ?? Infinity;
     return currentTime * 1000 >= item.startMs && (currentTime * 1000 < item.endMs || currentTime * 1000 < nextStart);
@@ -823,6 +829,17 @@ function VerticalPreview({
   }
 
   useEffect(() => {
+    let alive = true;
+    for (const overlay of overlays) {
+      if (imageCache.current.has(overlay.id)) continue;
+      const image = new Image();
+      image.onload = () => alive && imageCache.current.set(overlay.id, image);
+      image.src = overlay.src;
+    }
+    return () => { alive = false; };
+  }, [overlays]);
+
+  useEffect(() => {
     const c = canvasRef.current;
     const g = c?.getContext("2d");
     if (!c || !g) return;
@@ -837,6 +854,13 @@ function VerticalPreview({
           const p = cropToPixels(pane.crop, v.videoWidth || srcW, v.videoHeight || srcH);
           const d = pane.destination;
           g.drawImage(v, p.sx, p.sy, p.sw, p.sh, d.x * PW, d.y * PH, d.w * PW, d.h * PH);
+        }
+        for (const overlay of overlaysAt(state, v.currentTime)) {
+          const image = imageCache.current.get(overlay.id);
+          if (!image) continue;
+          g.globalAlpha = overlay.opacity;
+          g.drawImage(image, (overlay.x - overlay.width / 2) * PW, (overlay.y - overlay.height / 2) * PH, overlay.width * PW, overlay.height * PH);
+          g.globalAlpha = 1;
         }
 
         if (captionsEnabled && transcript) {
@@ -879,7 +903,49 @@ function VerticalPreview({
     };
     raf = requestAnimationFrame(draw);
     return () => cancelAnimationFrame(raf);
-  }, [videoRef, srcW, srcH, PH, transcript, captionsEnabled]);
+  }, [videoRef, srcW, srcH, PH, transcript, captionsEnabled, overlays]);
+
+  function dragOverlay(e: React.PointerEvent, overlay: ImageOverlay) {
+    e.preventDefault();
+    e.stopPropagation();
+    const box = frameRef.current?.getBoundingClientRect();
+    if (!box) return;
+    const onMove = (event: PointerEvent) => updateImageOverlay(overlay.id, {
+      x: (event.clientX - box.left) / box.width,
+      y: (event.clientY - box.top) / box.height,
+    });
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  function resizeOverlay(e: React.PointerEvent, overlay: ImageOverlay, mode: "width" | "height" | "both") {
+    e.preventDefault();
+    e.stopPropagation();
+    const box = frameRef.current?.getBoundingClientRect();
+    if (!box) return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const start = { x: overlay.x, y: overlay.y, width: overlay.width, height: overlay.height };
+    const onMove = (event: PointerEvent) => {
+      const dx = (event.clientX - startX) / box.width;
+      const dy = (event.clientY - startY) / box.height;
+      const width = mode === "height" ? start.width : Math.min(0.95, Math.max(0.03, start.width + dx));
+      const height = mode === "width" ? start.height : Math.min(0.95, Math.max(0.03, start.height + dy));
+      const x = mode === "height" ? start.x : start.x + (width - start.width) / 2;
+      const y = mode === "width" ? start.y : start.y + (height - start.height) / 2;
+      updateImageOverlay(overlay.id, { x, y, width, height });
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
 
   return (
     <div ref={frameRef} className="relative self-center" style={{ width: PW, height: PH }}>
@@ -894,7 +960,90 @@ function VerticalPreview({
           Legenda
         </div>
       )}
+      {overlaysAt(useEditor.getState(), currentTime).map((overlay) => (
+        <div
+          key={overlay.id}
+          className="absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-move rounded border-2 border-sky-400 bg-sky-500/10"
+          style={{ left: `${overlay.x * 100}%`, top: `${overlay.y * 100}%`, width: `${overlay.width * 100}%`, height: `${overlay.height * 100}%` }}
+          onPointerDown={(e) => dragOverlay(e, overlay)}
+          title="Arraste para posicionar a imagem"
+        >
+          <div
+            className="absolute -right-1.5 top-1/2 h-3 w-3 -translate-y-1/2 rounded-sm bg-sky-400 cursor-ew-resize"
+            onPointerDown={(e) => resizeOverlay(e, overlay, "width")}
+            title="Redimensionar largura"
+          />
+          <div
+            className="absolute -bottom-1.5 left-1/2 h-3 w-3 -translate-x-1/2 rounded-sm bg-sky-400 cursor-ns-resize"
+            onPointerDown={(e) => resizeOverlay(e, overlay, "height")}
+            title="Redimensionar altura"
+          />
+          <div
+            className="absolute -bottom-1.5 -right-1.5 h-3 w-3 rounded-sm bg-accent cursor-nwse-resize"
+            onPointerDown={(e) => resizeOverlay(e, overlay, "both")}
+            title="Redimensionar tamanho"
+          />
+        </div>
+      ))}
     </div>
+  );
+}
+
+function ImageOverlayControls() {
+  const overlays = useEditor((s) => s.imageOverlays ?? []);
+  const add = useEditor((s) => s.addImageOverlay);
+  const update = useEditor((s) => s.updateImageOverlay);
+  const remove = useEditor((s) => s.removeImageOverlay);
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.currentTarget.value = "";
+    if (!file) return;
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type) || file.size > 2 * 1024 * 1024) {
+      window.alert("Use PNG, JPG ou WebP de até 2 MB.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new Image();
+      image.onload = () => add(String(reader.result), image.naturalWidth, image.naturalHeight);
+      image.src = String(reader.result);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <section className="rounded-md border border-border bg-surface p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold">Marca d’água</h3>
+          <p className="text-xs text-muted">Imagem visível no intervalo da trilha.</p>
+        </div>
+        <label className="cursor-pointer rounded-sm bg-accent px-2.5 py-1.5 text-xs font-semibold text-accent-fg hover:brightness-110">
+          Adicionar imagem
+          <input type="file" accept="image/png,image/jpeg,image/webp" className="sr-only" onChange={onFile} />
+        </label>
+      </div>
+      {overlays.map((overlay) => (
+        <div key={overlay.id} className="mt-3 grid grid-cols-[1fr_auto] gap-2 border-t border-border pt-3 text-xs">
+          <div className="flex items-center gap-2">
+            <img src={overlay.src} alt="" className="h-10 w-10 rounded object-contain bg-black" />
+            <div className="min-w-0 flex-1">
+              <label className="flex items-center gap-2 text-muted">Opacidade
+                <input type="range" min="0" max="1" step="0.01" value={overlay.opacity} onChange={(e) => update(overlay.id, { opacity: Number(e.target.value) })} className="w-24 accent-twitch" />
+              </label>
+              <label className="mt-1 flex items-center gap-2 text-muted">Tamanho
+                <input type="range" min="0.03" max="1" step="0.01" value={overlay.width} onChange={(e) => {
+                  const width = Number(e.target.value);
+                  update(overlay.id, { width, height: width * (overlay.height / overlay.width) });
+                }} className="w-24 accent-twitch" />
+              </label>
+            </div>
+          </div>
+          <button type="button" onClick={() => remove(overlay.id)} className="self-start text-muted hover:text-danger" aria-label="Remover marca d’água">×</button>
+        </div>
+      ))}
+    </section>
   );
 }
 

@@ -91,7 +91,7 @@ function useFilmstrip(url: string, duration: number) {
 }
 
 /** "video" = faixa principal; número = faixa extra (índice `ti`, 1-based). */
-export type Track = "video" | "audio" | number;
+export type Track = "video" | "audio" | "image" | number;
 export type Selection = { track: Track; i: number } | null;
 
 const RATES = [0.5, 1, 1.5, 2];
@@ -161,6 +161,7 @@ export function Timeline({
   const segments = useEditor((s) => s.segments);
   const audio = useEditor((s) => s.audio);
   const tracks = useEditor((s) => s.tracks) ?? [];
+  const imageOverlays = useEditor((s) => s.imageOverlays) ?? [];
   const activeTrack = useEditor((s) => s.activeTrack);
   const mainKeyframes = useEditor((s) => s.keyframes);
   const currentTime = useEditor((s) => s.currentTime);
@@ -238,6 +239,7 @@ export function Timeline({
     const lists: [Track, { start: number; end: number }[]][] = [
       ["video", st.segments],
       ["audio", st.audio ?? []],
+      ["image", imageOverlays],
       ...(st.tracks ?? []).map((tr, k) => [k + 1, tr.segments] as [Track, typeof tr.segments]),
     ];
     for (const [key, list] of lists) {
@@ -263,7 +265,10 @@ export function Timeline({
     const onMove = (ev: PointerEvent) => {
       const t = snap(timeAt(ev.clientX), track, i);
       const st = useEditor.getState();
-      if (typeof track === "number") st.setTrackSegmentEdge(track, i, which, t);
+      if (track === "image") {
+        const overlay = st.imageOverlays?.[i];
+        if (overlay) st.setImageOverlayEdge(overlay.id, which, t);
+      } else if (typeof track === "number") st.setTrackSegmentEdge(track, i, which, t);
       else if (track === "audio") st.setAudioSegmentEdge(i, which, t);
       else st.setSegmentEdge(i, which, t);
       onSeek(t);
@@ -288,16 +293,19 @@ export function Timeline({
 
   /** Faixa que recebe dividir/remover: a selecionada, a faixa extra ativa, ou vídeo. */
   const editTrack: Track =
-    selected?.track === "audio" && detached
-      ? "audio"
-      : typeof selected?.track === "number"
-        ? selected.track
-        : selected?.track === "video" || activeTrack === 0
-          ? "video"
-          : activeTrack;
+    selected?.track === "image"
+      ? "image"
+      : selected?.track === "audio" && detached
+        ? "audio"
+        : typeof selected?.track === "number"
+          ? selected.track
+          : selected?.track === "video" || activeTrack === 0
+            ? "video"
+            : activeTrack;
 
   function doSplit() {
     const st = useEditor.getState();
+    if (editTrack === "image") return;
     if (typeof editTrack === "number") st.splitTrack(editTrack, st.currentTime);
     else if (editTrack === "audio") st.splitAudio(st.currentTime);
     else st.split(st.currentTime);
@@ -310,10 +318,15 @@ export function Timeline({
         ? (st.tracks?.[editTrack - 1]?.segments ?? [])
         : editTrack === "audio"
           ? (st.audio ?? [])
-          : st.segments;
+            : editTrack === "image"
+              ? (st.imageOverlays ?? []).map((x) => ({ start: x.start, end: x.end }))
+              : st.segments;
     const i = selected && selected.track === editTrack ? selected.i : segmentIndexAt(list, st.currentTime);
     if (i < 0) return;
-    if (typeof editTrack === "number") st.removeTrackSegment(editTrack, i);
+    if (editTrack === "image") {
+      const overlay = st.imageOverlays?.[i];
+      if (overlay) st.removeImageOverlay(overlay.id);
+    } else if (typeof editTrack === "number") st.removeTrackSegment(editTrack, i);
     else if (editTrack === "audio") st.removeAudioAt(i);
     else st.removeAt(i);
     onSelect(null);
@@ -321,7 +334,7 @@ export function Timeline({
 
   function selectTrack(track: Track, i: number) {
     onSelect({ track, i });
-    if (track !== "audio") useEditor.getState().setActiveTrack(typeof track === "number" ? track : 0);
+    if (track !== "audio" && track !== "image") useEditor.getState().setActiveTrack(typeof track === "number" ? track : 0);
   }
 
   function seekEdge(dir: -1 | 1) {
@@ -339,11 +352,13 @@ export function Timeline({
 
   const total = segmentsTotal(outputSegments(useEditor.getState()));
   const removeDisabled =
-    typeof editTrack === "number"
-      ? !tracks[editTrack - 1]?.segments.length
-      : editTrack === "video"
-        ? segments.length <= 1
-        : !(audio && audio.length);
+    editTrack === "image"
+      ? !imageOverlays.length
+      : typeof editTrack === "number"
+        ? !tracks[editTrack - 1]?.segments.length
+        : editTrack === "video"
+          ? segments.length <= 1
+          : !(audio && audio.length);
   const trackH = expanded ? 64 : 40;
 
   return (
@@ -464,6 +479,15 @@ export function Timeline({
               </div>
             </div>
           ))}
+          {imageOverlays.length > 0 && (
+            <div className="flex flex-col">
+              <div className="h-1" />
+              <div className="flex flex-col items-center justify-center text-sky-400" style={{ height: trackH }} title="Imagens / marcas d’água">
+                <Icon name="film" width={15} height={15} />
+                <span className="text-[9px]">IMG</span>
+              </div>
+            </div>
+          )}
           <div className="h-1" />
           <div className="flex items-center justify-center" style={{ height: audioH }} title="Áudio">
             <Icon name="music" width={15} height={15} />
@@ -562,6 +586,31 @@ export function Timeline({
                 </div>
               </div>
             ))}
+
+            {imageOverlays.length > 0 && (
+              <div>
+                <div className="h-1" />
+                <div className="relative rounded-sm bg-border/40 overflow-hidden transition-[height]" style={{ height: trackH }}>
+                  {imageOverlays.map((overlay, i) => (
+                    <SegmentBlock
+                      key={overlay.id}
+                      left={pct(overlay.start)}
+                      width={pct(overlay.end - overlay.start)}
+                      tone="overlay"
+                      selected={selected?.track === "image" && selected.i === i}
+                      onDown={(e) => {
+                        e.stopPropagation();
+                        selectTrack("image", i);
+                        onSeek(timeAt(e.clientX));
+                      }}
+                      onEdge={(e, w) => dragEdge(e, "image", i, w)}
+                    >
+                      <span className="absolute inset-0 flex items-center justify-center px-2 text-[10px] text-fg/80 pointer-events-none truncate">Marca d’água</span>
+                    </SegmentBlock>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="h-1" />
 

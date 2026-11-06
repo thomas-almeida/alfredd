@@ -2,7 +2,7 @@
 
 export const OUT_W = 1080;
 export const OUT_H = 1920;
-export const MAX_CLIP_SECONDS = 90;
+export const MAX_CLIP_SECONDS = 180;
 /** Altura da faixa da cam no layout cam_game. */
 export const CAM_H = 640;
 export type FocusPreset = "full" | "split_vertical" | "split_horizontal" | "grid_2x2";
@@ -24,6 +24,20 @@ export interface CaptionPosition {
   /** Posição normalizada do centro da legenda no canvas final. */
   x: number;
   y: number;
+}
+
+/** Imagem sobreposta ao vídeo, em coordenadas normalizadas do canvas final. */
+export interface ImageOverlay {
+  id: string;
+  /** Data URL ou URL pública de uma imagem aprovada pelo editor. */
+  src: string;
+  start: number;
+  end: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  opacity: number;
 }
 
 /** Um foco independente sobre a mesma fonte de vídeo. */
@@ -63,6 +77,7 @@ export interface EditorState {
   composition?: FocusPane[];
   /** Posição normalizada do centro das legendas no canvas final. */
   captionPosition?: CaptionPosition;
+  imageOverlays?: ImageOverlay[];
 }
 
 /** Crops fixados num instante `t` (tempo da fonte). */
@@ -452,4 +467,8 @@ export function compositionAt(state: EditorState, t: number): FocusPane[] {
 export function outputSegments(state: EditorState): Trim[] {
   const all = [...state.segments, ...(state.tracks ?? []).flatMap((tr) => tr.segments)];
   return normalizeSegments(all, Number.MAX_VALUE);
+}
+
+export function overlaysAt(state: EditorState, t: number): ImageOverlay[] {
+  return (state.imageOverlays ?? []).filter((overlay) => t >= overlay.start && t < overlay.end);
 }
