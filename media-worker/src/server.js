@@ -12,7 +12,14 @@ const secret = process.env.MEDIA_WORKER_SECRET || "";
 const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
 const ytdlp = process.env.YTDLP_PATH || "yt-dlp";
 const deno = process.env.DENO_PATH || (process.platform === "win32" ? "deno" : "/usr/local/bin/deno");
-const youtubeProxy = process.env.YOUTUBE_PROXY_URL?.trim() || "";
+const youtubeProxies = (process.env.YOUTUBE_PROXY_URLS || process.env.YOUTUBE_PROXY_URL || "")
+  .split(/[\r\n,]+/)
+  .map((value) => value.trim())
+  .filter(Boolean);
+const configuredProxyCooldownMs = Number(process.env.YOUTUBE_PROXY_COOLDOWN_MS);
+const youtubeProxyCooldownMs = Number.isFinite(configuredProxyCooldownMs) && configuredProxyCooldownMs > 0 ? configuredProxyCooldownMs : 5 * 60_000;
+const youtubeProxyCooldowns = new Map();
+let youtubeProxyCursor = 0;
 const youtubeUserAgent = process.env.YOUTUBE_USER_AGENT?.trim() || "";
 const youtubePotProviderUrl = process.env.YOUTUBE_POT_PROVIDER_URL?.trim() || "";
 const youtubeCookiesFile = process.env.YOUTUBE_COOKIES_FILE?.trim() || "";
@@ -74,24 +81,62 @@ function run(command, args, timeoutMs = 0) {
     });
   });
 }
-async function runYtdlp(args) {
+function proxyCandidates() {
+  if (!youtubeProxies.length) return [{ proxy: "", index: -1 }];
+  const now = Date.now();
+  const available = youtubeProxies.map((_, index) => index).filter((index) => (youtubeProxyCooldowns.get(index) || 0) <= now);
+  const pool = available.length
+    ? available
+    : [youtubeProxies.reduce((best, _, index) => {
+      const bestUntil = youtubeProxyCooldowns.get(best) || 0;
+      const currentUntil = youtubeProxyCooldowns.get(index) || 0;
+      return currentUntil < bestUntil ? index : best;
+    }, 0)];
+  const start = youtubeProxyCursor % pool.length;
+  youtubeProxyCursor = (youtubeProxyCursor + 1) % pool.length;
+  return [...pool.slice(start), ...pool.slice(0, start)].map((index) => ({ proxy: youtubeProxies[index], index }));
+}
+
+function shouldRotateProxy(error) {
+  const message = String(error?.message || error).toLowerCase();
+  return /not a bot|sign in to confirm|confirm you.?re not a bot|challenge|proxy|407|408|429|timeout|timed out|econn|enotfound|tunnel|network/.test(message);
+}
+
+function cooldownProxy(index) {
+  if (index >= 0 && youtubeProxies[index]) {
+    youtubeProxyCooldowns.set(index, Date.now() + youtubeProxyCooldownMs);
+  }
+}
+
+async function runYtdlpWithProxy(args) {
   let lastError;
   const cookiePath = youtubeCookiesFile || await youtubeCookiesPath;
-  for (const clients of youtubePlayerClients) {
-    const extractorArgs = clients === "default" ? [] : ["--extractor-args", `youtube:player_client=${clients}`];
-    const proxyArgs = youtubeProxy ? ["--proxy", youtubeProxy] : [];
-    const cookieArgs = cookiePath ? ["--cookies", cookiePath] : [];
-    const userAgentArgs = youtubeUserAgent ? ["--user-agent", youtubeUserAgent] : [];
-    const potArgs = youtubePotProviderUrl ? ["--extractor-args", `youtubepot-bgutilhttp:base_url=${youtubePotProviderUrl}`] : [];
-    console.log(`[youtube] tentando cliente ${clients} (proxy=${Boolean(youtubeProxy)}, cookies=${Boolean(cookiePath)})`);
-    try {
-      return await run(ytdlp, ["--js-runtimes", `deno:${deno}`, "--remote-components", "ejs:github", ...proxyArgs, ...cookieArgs, ...userAgentArgs, ...potArgs, ...extractorArgs, ...args], ytdlpTimeoutMs);
-    } catch (error) {
-      lastError = error;
-      console.warn(`[youtube] extractor client ${clients} failed: ${error.message}`);
+  for (const { proxy, index } of proxyCandidates()) {
+    for (const clients of youtubePlayerClients) {
+      const extractorArgs = clients === "default" ? [] : ["--extractor-args", `youtube:player_client=${clients}`];
+      const proxyArgs = proxy ? ["--proxy", proxy] : [];
+      const cookieArgs = cookiePath ? ["--cookies", cookiePath] : [];
+      const userAgentArgs = youtubeUserAgent ? ["--user-agent", youtubeUserAgent] : [];
+      const potArgs = youtubePotProviderUrl ? ["--extractor-args", `youtubepot-bgutilhttp:base_url=${youtubePotProviderUrl}`] : [];
+      console.log(`[youtube] tentando cliente ${clients} (proxy=${proxy ? `pool-${index + 1}` : "none"}, cookies=${Boolean(cookiePath)})`);
+      try {
+        const output = await run(ytdlp, ["--js-runtimes", `deno:${deno}`, "--remote-components", "ejs:github", ...proxyArgs, ...cookieArgs, ...userAgentArgs, ...potArgs, ...extractorArgs, ...args], ytdlpTimeoutMs);
+        return { output, proxy };
+      } catch (error) {
+        lastError = error;
+        console.warn(`[youtube] extractor client ${clients} on proxy ${proxy ? `pool-${index + 1}` : "none"} failed: ${error.message}`);
+        if (shouldRotateProxy(error)) {
+          cooldownProxy(index);
+          break;
+        }
+      }
     }
   }
   throw lastError || new Error("yt-dlp falhou");
+}
+
+async function runYtdlp(args) {
+  return (await runYtdlpWithProxy(args)).output;
 }
 
 async function directYoutubeUrl(id, format) {
@@ -256,11 +301,12 @@ async function youtube(url) {
     progress.set(key, { status: "resolving" });
     const max = process.env.YOUTUBE_MEDIA_MAX_HEIGHT || "480";
     const format = `bestvideo[ext=mp4][height<=${max}]+bestaudio[ext=m4a]/bestvideo[height<=${max}]+bestaudio/best`;
-    const urls = (await runYtdlp(["-g", "-f", format, "--no-warnings", `https://www.youtube.com/watch?v=${id}`])).trim().split(/\r?\n/).filter(Boolean);
+    const resolved = await runYtdlpWithProxy(["-g", "-f", format, "--no-warnings", `https://www.youtube.com/watch?v=${id}`]);
+    const urls = resolved.output.trim().split(/\r?\n/).filter(Boolean);
     if (!urls[0]) throw new Error("yt-dlp não retornou vídeo");
     progress.set(key, { status: "downloading", processedMs: 0 });
     const seek = start == null ? [] : ["-ss", String(start / 1000), "-t", String((end - start) / 1000)];
-    const ffmpegProxy = /^https?:\/\//i.test(youtubeProxy) ? ["-http_proxy", youtubeProxy] : [];
+    const ffmpegProxy = /^https?:\/\//i.test(resolved.proxy) ? ["-http_proxy", resolved.proxy] : [];
     const args = ["-hide_banner", "-loglevel", "error", "-y", ...ffmpegProxy, ...seek, "-i", urls[0]];
     if (urls[1]) args.push(...seek, "-i", urls[1], "-map", "0:v:0", "-map", "1:a:0", "-c:v", "copy", "-c:a", "aac"); else args.push("-c", "copy");
     args.push("-movflags", "+faststart", file);

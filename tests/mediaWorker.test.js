@@ -63,6 +63,10 @@ test("contrato de deploy mantém Vercel e Render separados", async () => {
   assert.match(server, /--js-runtimes.*deno/);
   assert.match(server, /DENO_PATH/);
   assert.match(server, /YOUTUBE_PROXY_URL/);
+  assert.match(server, /YOUTUBE_PROXY_URLS/);
+  assert.match(server, /YOUTUBE_PROXY_COOLDOWN_MS/);
+  assert.match(server, /youtubeProxyCooldowns/);
+  assert.match(server, /runYtdlpWithProxy/);
   assert.match(server, /--proxy/);
   assert.match(server, /-http_proxy/);
   assert.match(server, /YOUTUBE_COOKIES_B64/);

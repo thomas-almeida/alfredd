@@ -65,6 +65,8 @@ Obrigatorias:
 ```env
 MEDIA_WORKER_SECRET=
 YOUTUBE_PROXY_URL=
+YOUTUBE_PROXY_URLS=
+YOUTUBE_PROXY_COOLDOWN_MS=300000
 YOUTUBE_COOKIES_B64=
 YOUTUBE_USER_AGENT=
 GROQ_API_KEY=
@@ -87,6 +89,8 @@ MEDIA_WORKER_SECRET=mesmo-valor-do-Fly
 ```
 
 Proxy, cookies, user-agent e `GROQ_API_KEY` devem ficar somente no Fly. O `.env` local nao altera automaticamente as variaveis da Vercel.
+
+`YOUTUBE_PROXY_URLS` aceita varios endpoints completos separados por virgula ou quebra de linha. O worker alterna entre eles e coloca um proxy que recebeu bloqueio, timeout, erro de conexao ou desafio anti-bot em cooldown. `YOUTUBE_PROXY_URL` continua funcionando como fallback para uma unica URL. Para Webshare, use endpoints/sessoes que realmente produzam IPs diferentes; repetir a mesma URL nao cria uma nova banda ou identidade.
 
 ## Regras de compatibilidade
 
