@@ -37,7 +37,7 @@ export function HighlightsPanel({ videoRef, sourceUrl, onTrim, thumbnailUrl, rea
     const res = await fetch("/api/transcript/highlights", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: sourceUrl, startMs: windowStart, endMs: windowEnd, count: COUNT, minSeconds: 15, maxSeconds: 60, ...extra }),
+      body: JSON.stringify({ url: sourceUrl, startMs: windowStart, endMs: windowEnd, count: COUNT, minSeconds: 15, maxSeconds: 180, ...extra }),
     });
     const json = await res.json() as { highlights?: Highlight[] | null; cached?: boolean; error?: string; code?: string };
     return { res, json };
@@ -113,7 +113,7 @@ export function HighlightsPanel({ videoRef, sourceUrl, onTrim, thumbnailUrl, rea
         </button>;
       })}
     </div> : <p className="rounded-md border border-dashed border-border px-4 py-6 text-center text-xs text-muted">
-      Clique em Capturar Destaques para a IA sugerir até {COUNT} trechos de 15 a 60 segundos.
+      Clique em Capturar Destaques para a IA sugerir até {COUNT} trechos de 15 segundos a 3 minutos.
     </p>}
     <UpgradeModal open={upgradeOpen} onClose={() => setUpgradeOpen(false)} title="Limite do plano Free atingido" description="Você atingiu o limite diário desse recurso. Assine o PRO para continuar usando destaques e transcrições com limites maiores." />
   </section>;

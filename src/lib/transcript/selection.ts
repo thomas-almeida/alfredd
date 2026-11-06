@@ -74,7 +74,7 @@ export type TrimOptions = {
   padBeforeMs?: number; // respiro antes da 1ª palavra
   padAfterMs?: number; // respiro depois da última
   minMs?: number;
-  maxMs?: number; // limite do export (90 s no clipador)
+  maxMs?: number; // limite do export (180 s no clipador)
   durationMs?: number; // duração da mídia, para não passar do fim
   snapToSentence?: boolean;
 };

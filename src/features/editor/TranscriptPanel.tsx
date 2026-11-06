@@ -13,7 +13,7 @@ const fmt = (ms: number) => {
 const EMPTY_WORDS: Transcript["words"] = [];
 const EMPTY_LINES: Transcript["lines"] = [];
 
-export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript, onTrim, maxClipMs = 90_000, autoLoad = false, aiOnly = false, transcriptWindow, timeOffsetMs = 0, tall = false, showHighlights = true, fill = false }: {
+export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript, onTrim, maxClipMs = 180_000, autoLoad = false, aiOnly = false, transcriptWindow, timeOffsetMs = 0, tall = false, showHighlights = true, fill = false }: {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   sourceUrl: string;
   transcript: Transcript | null;
@@ -71,7 +71,7 @@ export function TranscriptPanel({ videoRef, sourceUrl, transcript, onTranscript,
     const res = await fetch("/api/transcript/highlights", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url: sourceUrl, ...transcriptWindow, count: 5, minSeconds: 15, maxSeconds: 60, ...extra }),
+      body: JSON.stringify({ url: sourceUrl, ...transcriptWindow, count: 5, minSeconds: 15, maxSeconds: 180, ...extra }),
     });
     const json = await res.json() as { highlights?: Highlight[] | null; cached?: boolean; error?: string; code?: string };
     return { res, json };

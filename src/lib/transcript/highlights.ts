@@ -18,12 +18,12 @@ export type Highlight = Trim & {
 };
 
 /** Suba quando o prompt ou o parser mudar: invalida os destaques salvos. */
-export const HIGHLIGHT_PROMPT_VERSION = 1;
+export const HIGHLIGHT_PROMPT_VERSION = 2;
 
 export type HighlightOptions = {
   count?: number; // quantos momentos (padrão 5)
   minSeconds?: number; // padrão 15
-  maxSeconds?: number; // padrão 60 (o export aceita 90)
+  maxSeconds?: number; // padrão 180 (3 minutos)
   context?: string; // título do vídeo, canal, jogo — ajuda muito
   signals?: Signal[];
   maxPromptChars?: number; // por janela; transcrições longas são processadas em janelas
@@ -50,7 +50,7 @@ export function parseTimestamp(v: unknown): number | null {
 export function buildHighlightPrompt(chunks: Chunk[], o: HighlightOptions = {}): string {
   const count = o.count ?? 5;
   const minS = o.minSeconds ?? 15;
-  const maxS = o.maxSeconds ?? 60;
+  const maxS = o.maxSeconds ?? 180;
   const first = chunks[0]?.startMs ?? 0;
   const last = chunks.at(-1)?.endMs ?? 0;
   const sigs = (o.signals ?? [])
@@ -59,7 +59,7 @@ export function buildHighlightPrompt(chunks: Chunk[], o: HighlightOptions = {}):
 
   return [
     'Você é editor de cortes virais para TikTok, Reels e YouTube Shorts.',
-    `Encontre os ${count} melhores momentos para virar cortes verticais de ${minS} a ${maxS} segundos.`,
+    `Encontre os ${count} melhores momentos para virar cortes verticais de ${minS} a ${maxS} segundos. Prefira trechos mais longos, de até ${maxS} segundos, quando houver uma ideia completa, contexto e conclusão. Não limite artificialmente o corte a menos de 1 minuto.`,
     'Um bom corte: começa com um gancho forte nos primeiros 3 segundos, tem uma ideia completa',
     '(começo, meio e fim), e tem emoção, opinião polêmica, revelação, humor ou reação.',
     'Não comece no meio de uma frase e não termine antes da conclusão.',
@@ -119,7 +119,7 @@ export function parseHighlights(text: string, words: Word[], o: HighlightOptions
   const json = extractJson(text);
   const raw = Array.isArray(json) ? json : json?.moments ?? [];
   const minMs = (o.minSeconds ?? 15) * 1000;
-  const maxMs = (o.maxSeconds ?? 60) * 1000;
+  const maxMs = (o.maxSeconds ?? 180) * 1000;
   const out: Highlight[] = [];
 
   for (const m of raw) {

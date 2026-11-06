@@ -5,7 +5,7 @@ import { upsertClipCatalog } from "@/features/library/catalog";
 
 export const runtime = "nodejs";
 
-const MAX_SECONDS = 90;
+const MAX_SECONDS = 180;
 
 /**
  * Registra o clipe no catálogo e devolve os dados do editor. O vídeo não é

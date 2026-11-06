@@ -83,11 +83,11 @@ test("lockAspect ajusta a altura à proporção do slot", () => {
   near((r.w * 1920) / (r.h * 1080), OUT_W / CAM_H);
 });
 
-test("clampTrim limita a 90 s e ordena", () => {
+test("clampTrim limita a 180 s e ordena", () => {
   assert.deepEqual(clampTrim({ start: 0, end: 200 }, 200), { start: 0, end: MAX_CLIP_SECONDS });
   const t = clampTrim({ start: 10, end: 5 }, 30);
   assert.ok(t.end > t.start);
-  assert.equal(defaultState(120).segments[0]!.end, MAX_CLIP_SECONDS);
+  assert.equal(defaultState(120).segments[0]!.end, 120);
 });
 
 test("cropToPixels converte para pixels inteiros", () => {
@@ -99,7 +99,7 @@ test("cropToPixels converte para pixels inteiros", () => {
   });
 });
 
-test("normalizeSegments ordena, funde e limita a 90 s", () => {
+test("normalizeSegments ordena, funde e limita a 180 s", () => {
   const segs = normalizeSegments(
     [
       { start: 50, end: 60 },
@@ -113,7 +113,7 @@ test("normalizeSegments ordena, funde e limita a 90 s", () => {
     { start: 0, end: 20 },
     { start: 50, end: 60 },
   ]);
-  const big = normalizeSegments([{ start: 0, end: 60 }, { start: 100, end: 160 }], 200);
+  const big = normalizeSegments([{ start: 0, end: 120 }, { start: 100, end: 220 }], 200);
   near(segmentsTotal(big), MAX_CLIP_SECONDS);
   assert.equal(normalizeSegments([], 30).length, 1);
 });

@@ -25,8 +25,8 @@ export async function POST(req: NextRequest) {
     const source = parseSource(typeof b.url === "string" ? b.url : "", startMs !== undefined && endMs !== undefined ? { startMs, endMs } : undefined);
     if (!source) return NextResponse.json({ error: "Link de YouTube ou Twitch inválido", code: "invalid_source" }, { status: 400 });
     const count = typeof b.count === "number" ? Math.max(1, Math.min(10, Math.round(b.count))) : 5;
-    const minSeconds = typeof b.minSeconds === "number" ? Math.max(5, Math.min(90, b.minSeconds)) : 15;
-    const maxSeconds = typeof b.maxSeconds === "number" ? Math.max(10, Math.min(90, b.maxSeconds)) : 60;
+    const minSeconds = typeof b.minSeconds === "number" ? Math.max(5, Math.min(180, b.minSeconds)) : 15;
+    const maxSeconds = typeof b.maxSeconds === "number" ? Math.max(10, Math.min(180, b.maxSeconds)) : 180;
     const signals = Array.isArray(b.signals) ? b.signals as Signal[] : undefined;
     const key = sourceKey(source);
     const params = `c${count}:${minSeconds}-${maxSeconds}`;
