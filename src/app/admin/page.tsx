@@ -11,6 +11,11 @@ function formatDate(value: string) {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" }).format(new Date(value));
 }
 
+function Detail({ label, value }: { label: string; value: string | null }) {
+  if (!value) return null;
+  return <div><dt className="text-xs uppercase tracking-wide text-muted">{label}</dt><dd className="mt-1 break-all text-sm text-fg">{value}</dd></div>;
+}
+
 export default async function AdminPage() {
   const session = await getSession();
   if (!session) redirect("/entrar?next=/admin");
@@ -25,37 +30,42 @@ export default async function AdminPage() {
   return (
     <AppShell crumbs={[{ label: "Admin" }, { label: "Leads" }]} wide>
       <PageHeader title="Leads da landing page" badges={<Badge tone="accent">ADMIN</Badge>} subtitle={`${leads?.length ?? 0} contatos capturados`} />
-      <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-        {error ? <p className="p-6 text-sm text-danger">Não foi possível carregar os leads.</p> : leads?.length ? (
-          <table className="w-full min-w-[1100px] text-left text-sm">
-            <thead className="border-b border-border bg-surface-2 text-xs uppercase tracking-wide text-muted">
-              <tr>
-                <th className="px-4 py-3">Lead</th>
-                <th className="px-4 py-3">Contato</th>
-                <th className="px-4 py-3">Criado em</th>
-                <th className="px-4 py-3">Campanha / anúncio</th>
-                <th className="px-4 py-3">Acesso</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {leads.map((lead) => (
-                <tr key={lead.lead_id} className="hover:bg-surface-2/50">
-                  <td className="px-4 py-4"><div className="font-medium text-fg">{lead.name}</div><div className="mt-1 font-mono text-[11px] text-muted">{lead.lead_id}</div></td>
-                  <td className="px-4 py-4"><div>{lead.email}</div><div className="mt-1 text-muted">{lead.whatsapp}</div></td>
-                  <td className="whitespace-nowrap px-4 py-4 text-muted">{formatDate(lead.created_at)}</td>
-                  <td className="px-4 py-4 text-xs text-muted">
-                    <div className="font-medium text-fg">{lead.campaign_name ?? lead.utm_campaign ?? (lead.fbclid ? "Facebook/Instagram" : "Orgânico ou direto")}</div>
-                    {(lead.ad_name ?? lead.ad_id) && <div className="mt-1">Anúncio: {lead.ad_name ?? lead.ad_id}</div>}
-                    {(lead.adset_name ?? lead.adset_id) && <div className="mt-1">Conjunto: {lead.adset_name ?? lead.adset_id}</div>}
-                    {(lead.placement ?? lead.site_source_name) && <div className="mt-1">Posição: {lead.placement ?? lead.site_source_name}</div>}
-                    {(lead.utm_source || lead.utm_medium) && <div className="mt-1 font-mono">{[lead.utm_source, lead.utm_medium].filter(Boolean).join(" / ")}</div>}
-                  </td>
-                  <td className="px-4 py-4"><LeadAccessButton leadId={lead.lead_id} granted={lead.access_granted} /></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : <p className="p-6 text-sm text-muted">Nenhum lead capturado ainda.</p>}
+      <div className="space-y-3">
+        {error ? <p className="rounded-lg border border-border bg-surface p-6 text-sm text-danger">Não foi possível carregar os leads.</p> : leads?.length ? leads.map((lead) => (
+          <details key={lead.lead_id} className="group rounded-xl border border-border bg-surface open:border-accent/40">
+            <summary className="flex cursor-pointer list-none items-center gap-4 px-5 py-4 [&::-webkit-details-marker]:hidden">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent/15 text-accent transition-transform group-open:rotate-90">›</span>
+              <span className="min-w-0 flex-1">
+                <span className="block font-semibold text-fg">{lead.name}</span>
+                <span className="mt-1 block truncate text-sm text-muted">{lead.email}</span>
+              </span>
+              <span className="hidden text-sm text-muted sm:block">{formatDate(lead.created_at)}</span>
+            </summary>
+            <div className="border-t border-border px-5 py-5">
+              <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+                <div><dt className="text-xs uppercase tracking-wide text-muted">Criado em</dt><dd className="mt-1 text-sm text-fg">{formatDate(lead.created_at)}</dd></div>
+                <Detail label="E-mail" value={lead.email} />
+                <Detail label="WhatsApp" value={lead.whatsapp} />
+                <Detail label="Lead ID" value={lead.lead_id} />
+                <Detail label="Campanha" value={lead.campaign_name ?? lead.campaign_id} />
+                <Detail label="Conjunto de anúncios" value={lead.adset_name ?? lead.adset_id} />
+                <Detail label="Anúncio / criativo" value={lead.ad_name ?? lead.ad_id} />
+                <Detail label="Posicionamento" value={lead.placement ?? lead.site_source_name} />
+                <Detail label="UTM source / medium" value={[lead.utm_source, lead.utm_medium].filter(Boolean).join(" / ") || null} />
+                <Detail label="UTM campaign" value={lead.utm_campaign} />
+                <Detail label="UTM content" value={lead.utm_content} />
+                <Detail label="UTM term" value={lead.utm_term} />
+                <Detail label="fbclid" value={lead.fbclid} />
+                <Detail label="fbc" value={lead.fbc} />
+                <Detail label="fbp" value={lead.fbp} />
+              </div>
+              <div className="mt-6 flex items-center justify-between gap-4 border-t border-border pt-4">
+                <span className="text-sm text-muted">{lead.fbclid ? "Origem: Facebook/Instagram" : "Origem: orgânica ou direta"}</span>
+                <LeadAccessButton leadId={lead.lead_id} granted={lead.access_granted} />
+              </div>
+            </div>
+          </details>
+        )) : <p className="rounded-lg border border-border bg-surface p-6 text-sm text-muted">Nenhum lead capturado ainda.</p>}
       </div>
     </AppShell>
   );
