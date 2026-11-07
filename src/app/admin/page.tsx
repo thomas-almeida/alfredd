@@ -19,23 +19,21 @@ export default async function AdminPage() {
   const admin = createAdminClient();
   const { data: leads, error } = await admin
     .from("lp_leads")
-    .select("lead_id,name,email,whatsapp,fbp,fbc,fbclid,created_at,access_granted")
+    .select("lead_id,name,email,whatsapp,fbp,fbc,fbclid,utm_source,utm_medium,utm_campaign,utm_content,utm_term,campaign_id,campaign_name,adset_id,adset_name,ad_id,ad_name,placement,site_source_name,created_at,access_granted")
     .order("created_at", { ascending: false });
 
   return (
     <AppShell crumbs={[{ label: "Admin" }, { label: "Leads" }]} wide>
       <PageHeader title="Leads da landing page" badges={<Badge tone="accent">ADMIN</Badge>} subtitle={`${leads?.length ?? 0} contatos capturados`} />
       <div className="overflow-x-auto rounded-lg border border-border bg-surface">
-        {error ? (
-          <p className="p-6 text-sm text-danger">Não foi possível carregar os leads.</p>
-        ) : leads?.length ? (
-          <table className="w-full min-w-[900px] text-left text-sm">
+        {error ? <p className="p-6 text-sm text-danger">Não foi possível carregar os leads.</p> : leads?.length ? (
+          <table className="w-full min-w-[1100px] text-left text-sm">
             <thead className="border-b border-border bg-surface-2 text-xs uppercase tracking-wide text-muted">
               <tr>
                 <th className="px-4 py-3">Lead</th>
                 <th className="px-4 py-3">Contato</th>
                 <th className="px-4 py-3">Criado em</th>
-                <th className="px-4 py-3">Origem Meta</th>
+                <th className="px-4 py-3">Campanha / anúncio</th>
                 <th className="px-4 py-3">Acesso</th>
               </tr>
             </thead>
@@ -46,8 +44,11 @@ export default async function AdminPage() {
                   <td className="px-4 py-4"><div>{lead.email}</div><div className="mt-1 text-muted">{lead.whatsapp}</div></td>
                   <td className="whitespace-nowrap px-4 py-4 text-muted">{formatDate(lead.created_at)}</td>
                   <td className="px-4 py-4 text-xs text-muted">
-                    {lead.fbclid ? <span className="text-accent">Facebook/Instagram</span> : "Orgânico ou direto"}
-                    {lead.fbc && <div className="mt-1 font-mono">fbc capturado</div>}
+                    <div className="font-medium text-fg">{lead.campaign_name ?? lead.utm_campaign ?? (lead.fbclid ? "Facebook/Instagram" : "Orgânico ou direto")}</div>
+                    {(lead.ad_name ?? lead.ad_id) && <div className="mt-1">Anúncio: {lead.ad_name ?? lead.ad_id}</div>}
+                    {(lead.adset_name ?? lead.adset_id) && <div className="mt-1">Conjunto: {lead.adset_name ?? lead.adset_id}</div>}
+                    {(lead.placement ?? lead.site_source_name) && <div className="mt-1">Posição: {lead.placement ?? lead.site_source_name}</div>}
+                    {(lead.utm_source || lead.utm_medium) && <div className="mt-1 font-mono">{[lead.utm_source, lead.utm_medium].filter(Boolean).join(" / ")}</div>}
                   </td>
                   <td className="px-4 py-4"><LeadAccessButton leadId={lead.lead_id} granted={lead.access_granted} /></td>
                 </tr>

@@ -9,6 +9,9 @@ type MetaAttribution = {
   fbp?: unknown;
   fbc?: unknown;
   fbclid?: unknown;
+  utmSource?: unknown; utmMedium?: unknown; utmCampaign?: unknown; utmContent?: unknown; utmTerm?: unknown;
+  campaignId?: unknown; campaignName?: unknown; adsetId?: unknown; adsetName?: unknown;
+  adId?: unknown; adName?: unknown; placement?: unknown; siteSourceName?: unknown;
 };
 
 function leadId() {
@@ -32,6 +35,15 @@ export async function POST(request: Request) {
   const fbp = typeof attribution.fbp === "string" ? attribution.fbp.trim().slice(0, 200) : null;
   const fbc = typeof attribution.fbc === "string" ? attribution.fbc.trim().slice(0, 200) : null;
   const fbclid = typeof attribution.fbclid === "string" ? attribution.fbclid.trim().slice(0, 500) : null;
+  const text = (value: unknown, max = 300) => typeof value === "string" ? value.trim().slice(0, max) || null : null;
+  const campaign = {
+    utm_source: text(attribution.utmSource), utm_medium: text(attribution.utmMedium),
+    utm_campaign: text(attribution.utmCampaign), utm_content: text(attribution.utmContent), utm_term: text(attribution.utmTerm),
+    campaign_id: text(attribution.campaignId, 100), campaign_name: text(attribution.campaignName),
+    adset_id: text(attribution.adsetId, 100), adset_name: text(attribution.adsetName),
+    ad_id: text(attribution.adId, 100), ad_name: text(attribution.adName),
+    placement: text(attribution.placement, 100), site_source_name: text(attribution.siteSourceName, 100),
+  };
   if (name.length < 2 || name.length > 120) return NextResponse.json({ error: "Informe um nome válido." }, { status: 400 });
   if (!/^\S+@\S+\.\S+$/.test(email) || email.length > 254) return NextResponse.json({ error: "Informe um e-mail válido." }, { status: 400 });
   if (whatsapp.length < 8 || whatsapp.length > 40) return NextResponse.json({ error: "Informe um WhatsApp válido." }, { status: 400 });
@@ -47,6 +59,7 @@ export async function POST(request: Request) {
     fbp,
     fbc,
     fbclid,
+    ...campaign,
   });
   if (error) {
     console.error("[leads] insert failed", error);
