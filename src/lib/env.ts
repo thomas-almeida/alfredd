@@ -15,6 +15,7 @@ const clientSchema = z.object({
   NEXT_PUBLIC_SUPABASE_URL: z.string().url(),
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: z.string().min(1),
   NEXT_PUBLIC_APP_URL: z.string().url(),
+  NEXT_PUBLIC_META_PIXEL_ID: z.string().regex(/^\d+$/).optional(),
 });
 
 const serverSchema = z.object({
@@ -28,6 +29,8 @@ const serverSchema = z.object({
   CRON_SECRET: z.string().min(1).optional(),
   ABACATEPAY_DEV_KEY: z.string().min(1).optional(),
   ABACATEPAY_WEBHOOK: z.string().min(1).optional(),
+  META_ACCESS_TOKEN: z.string().min(1).optional(),
+  META_GRAPH_API_VERSION: z.string().regex(/^v\d+\.\d+$/).optional(),
   // Engajamento do YouTube (Data API v3).
   YOUTUBE_API_KEY: z.string().min(1).optional(),
   // Download de clip/VOD da Twitch (GQL público + ffmpeg).
@@ -63,6 +66,7 @@ const parsedClient = clientSchema.safeParse({
   NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:
     process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY,
   NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+  NEXT_PUBLIC_META_PIXEL_ID: process.env.NEXT_PUBLIC_META_PIXEL_ID,
 });
 
 if (!parsedClient.success) {

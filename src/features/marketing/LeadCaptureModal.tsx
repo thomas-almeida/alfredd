@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { createPortal } from "react-dom";
+import { trackMetaEvent } from "@/lib/meta/pixel";
 
 const GROUP_URL = "https://chat.whatsapp.com/Hl7m99pNIsXBNrAQuDYjrZ";
 
@@ -20,11 +21,12 @@ export function LeadCaptureModal({ open, onClose }: { open: boolean; onClose: ()
     const name = String(data.get("name") ?? "").trim();
     const phone = String(data.get("phone") ?? "").trim();
     const email = String(data.get("email") ?? "").trim();
+    const eventId = crypto.randomUUID();
     try {
       const response = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, whatsapp: phone, email }),
+        body: JSON.stringify({ name, whatsapp: phone, email, eventId }),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null) as { error?: string } | null;
@@ -37,6 +39,7 @@ export function LeadCaptureModal({ open, onClose }: { open: boolean; onClose: ()
       setSending(false);
       return;
     }
+    trackMetaEvent("Lead", { content_name: "GTA VI VIP Creator Access", status: "submitted" }, eventId);
     const message = [
       "Olá! Quero entrar no grupo VIP de criadores de GTA VI.",
       `Nome: ${name}`,
