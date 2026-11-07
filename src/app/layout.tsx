@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { SupportButton } from "@/components/layout/SupportButton";
+import { Clarity } from "@/components/analytics/Clarity";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://clipesalfredd.top";
 
@@ -59,6 +60,7 @@ export default function RootLayout({
       <body>
         {children}
         <SupportButton />
+        <Clarity />
       </body>
     </html>
   );
