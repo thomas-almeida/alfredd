@@ -6,6 +6,7 @@ export interface SessionInfo {
   email: string | null;
   plan: Plan;
   isAdmin: boolean;
+  accessGranted: boolean;
   subscriptionStatus: SubscriptionStatus | null;
   isPro: boolean;
 }
@@ -20,7 +21,7 @@ export async function getSession(): Promise<SessionInfo | null> {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("plan, is_admin")
+    .select("plan, is_admin, access_granted")
     .eq("id", user.id)
     .single();
 
@@ -36,7 +37,8 @@ export async function getSession(): Promise<SessionInfo | null> {
     email: user.email ?? null,
     plan: (profile?.plan as Plan) ?? "free",
     isAdmin: profile?.is_admin ?? false,
+    accessGranted: profile?.access_granted ?? false,
     subscriptionStatus,
-    isPro: subscriptionStatus === "active",
+    isPro: subscriptionStatus === "active" || (profile?.access_granted ?? false),
   };
 }

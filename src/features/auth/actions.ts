@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { clientEnv } from "@/lib/env";
 
 export interface AuthState {
@@ -44,7 +45,7 @@ export async function signUp(
   }
 
   const supabase = await createClient();
-  const { error } = await supabase.auth.signUp({
+  const { data: signupData, error } = await supabase.auth.signUp({
     email,
     password,
     options: {
@@ -53,6 +54,21 @@ export async function signUp(
   });
   if (error) {
     return { error: error.message };
+  }
+
+  if (signupData.user?.id) {
+    try {
+      const admin = createAdminClient();
+      const { data: lead } = await admin
+        .from("lp_leads")
+        .select("access_granted")
+        .eq("email", email.toLowerCase())
+        .eq("access_granted", true)
+        .maybeSingle();
+      if (lead) await admin.from("profiles").update({ access_granted: true }).eq("id", signupData.user.id);
+    } catch {
+      // O vínculo será tentado novamente quando o fluxo administrativo for usado.
+    }
   }
 
   // Projetos com confirmação de e-mail exigem clique no link antes do login.

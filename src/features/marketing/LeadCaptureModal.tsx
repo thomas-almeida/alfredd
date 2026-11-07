@@ -7,19 +7,41 @@ const GROUP_URL = "https://chat.whatsapp.com/Hl7m99pNIsXBNrAQuDYjrZ";
 
 export function LeadCaptureModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   if (!open) return null;
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSending(true);
+    setError(null);
 
     const data = new FormData(event.currentTarget);
+    const name = String(data.get("name") ?? "").trim();
+    const phone = String(data.get("phone") ?? "").trim();
+    const email = String(data.get("email") ?? "").trim();
+    try {
+      const response = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, whatsapp: phone, email }),
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => null) as { error?: string } | null;
+        setError(payload?.error ?? "Não foi possível registrar seus dados.");
+        setSending(false);
+        return;
+      }
+    } catch {
+      setError("Não foi possível registrar seus dados. Tente novamente.");
+      setSending(false);
+      return;
+    }
     const message = [
       "Olá! Quero entrar no grupo VIP de criadores de GTA VI.",
-      `Nome: ${String(data.get("name") ?? "").trim()}`,
-      `Telefone: ${String(data.get("phone") ?? "").trim()}`,
-      `E-mail: ${String(data.get("email") ?? "").trim()}`,
+      `Nome: ${name}`,
+      `Telefone: ${phone}`,
+      `E-mail: ${email}`,
     ].join("\n");
     const separator = GROUP_URL.includes("?") ? "&" : "?";
 
@@ -70,6 +92,7 @@ export function LeadCaptureModal({ open, onClose }: { open: boolean; onClose: ()
           <button type="submit" disabled={sending} className="lp-button mt-2 w-full justify-center">
             {sending ? "Abrindo seu acesso…" : "Garantir acesso →"}
           </button>
+          {error && <p className="text-center text-xs text-red-400" role="alert">{error}</p>}
           <p className="text-center text-[11px] leading-5 text-zinc-500">
             Ao continuar, você será redirecionado para o WhatsApp.
           </p>

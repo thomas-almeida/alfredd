@@ -89,9 +89,20 @@ type ProfilesRow = {
   plan: Plan;
   timezone: string;
   is_admin: boolean;
+  access_granted: boolean;
   preferences: Json;
   created_at: string;
 }
+type LpLeadsRow = {
+  lead_id: string;
+  name: string;
+  email: string;
+  whatsapp: string;
+  created_at: string;
+  access_granted: boolean;
+  access_granted_at: string | null;
+  access_granted_by: string | null;
+};
 type FavoritesRow = {
   id: string;
   user_id: string;
@@ -244,6 +255,7 @@ export interface Database {
       youtube_saved_videos: Table<YoutubeSavedVideosRow>;
       video_highlights: Table<VideoHighlightsRow>;
       twitch_saved_vods: Table<TwitchSavedVodsRow>;
+      lp_leads: Table<LpLeadsRow>;
     };
     Views: Record<string, never>;
     Functions: {
