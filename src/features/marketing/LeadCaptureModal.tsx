@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { createPortal } from "react-dom";
+import { getMetaAttribution } from "@/lib/meta/attribution";
 import { trackMetaEvent } from "@/lib/meta/pixel";
 
 const GROUP_URL = "https://chat.whatsapp.com/Hl7m99pNIsXBNrAQuDYjrZ";
@@ -22,11 +23,12 @@ export function LeadCaptureModal({ open, onClose }: { open: boolean; onClose: ()
     const phone = String(data.get("phone") ?? "").trim();
     const email = String(data.get("email") ?? "").trim();
     const eventId = crypto.randomUUID();
+    const attribution = getMetaAttribution();
     try {
       const response = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, whatsapp: phone, email, eventId }),
+        body: JSON.stringify({ name, whatsapp: phone, email, eventId, attribution }),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null) as { error?: string } | null;

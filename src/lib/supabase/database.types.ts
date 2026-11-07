@@ -98,6 +98,9 @@ type LpLeadsRow = {
   name: string;
   email: string;
   whatsapp: string;
+  fbp: string | null;
+  fbc: string | null;
+  fbclid: string | null;
   created_at: string;
   access_granted: boolean;
   access_granted_at: string | null;

@@ -4,6 +4,7 @@ import Script from "next/script";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef } from "react";
 import { clientEnv } from "@/lib/env";
+import { captureMetaAttribution } from "@/lib/meta/attribution";
 import { trackMetaEvent } from "@/lib/meta/pixel";
 
 export function MetaPixel() {
@@ -12,6 +13,7 @@ export function MetaPixel() {
   const pixelId = clientEnv.NEXT_PUBLIC_META_PIXEL_ID;
 
   useEffect(() => {
+    captureMetaAttribution();
     if (pathname !== "/lp" || trackedPath.current === pathname) return;
     trackedPath.current = pathname;
     trackMetaEvent("ViewContent", { content_name: "GTA VI Creator Landing Page", content_category: "landing_page" });

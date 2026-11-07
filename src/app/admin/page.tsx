@@ -19,7 +19,7 @@ export default async function AdminPage() {
   const admin = createAdminClient();
   const { data: leads, error } = await admin
     .from("lp_leads")
-    .select("lead_id,name,email,whatsapp,created_at,access_granted")
+    .select("lead_id,name,email,whatsapp,fbp,fbc,fbclid,created_at,access_granted")
     .order("created_at", { ascending: false });
 
   return (
@@ -35,6 +35,7 @@ export default async function AdminPage() {
                 <th className="px-4 py-3">Lead</th>
                 <th className="px-4 py-3">Contato</th>
                 <th className="px-4 py-3">Criado em</th>
+                <th className="px-4 py-3">Origem Meta</th>
                 <th className="px-4 py-3">Acesso</th>
               </tr>
             </thead>
@@ -44,6 +45,10 @@ export default async function AdminPage() {
                   <td className="px-4 py-4"><div className="font-medium text-fg">{lead.name}</div><div className="mt-1 font-mono text-[11px] text-muted">{lead.lead_id}</div></td>
                   <td className="px-4 py-4"><div>{lead.email}</div><div className="mt-1 text-muted">{lead.whatsapp}</div></td>
                   <td className="whitespace-nowrap px-4 py-4 text-muted">{formatDate(lead.created_at)}</td>
+                  <td className="px-4 py-4 text-xs text-muted">
+                    {lead.fbclid ? <span className="text-accent">Facebook/Instagram</span> : "Orgânico ou direto"}
+                    {lead.fbc && <div className="mt-1 font-mono">fbc capturado</div>}
+                  </td>
                   <td className="px-4 py-4"><LeadAccessButton leadId={lead.lead_id} granted={lead.access_granted} /></td>
                 </tr>
               ))}

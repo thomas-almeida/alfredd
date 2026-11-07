@@ -5,11 +5,13 @@ function hash(value: string) {
   return createHash("sha256").update(value.trim().toLowerCase()).digest("hex");
 }
 
-export async function sendMetaLead({ eventId, name, email, whatsapp, request }: {
+export async function sendMetaLead({ eventId, name, email, whatsapp, fbp, fbc, request }: {
   eventId: string;
   name: string;
   email: string;
   whatsapp: string;
+  fbp: string | null;
+  fbc: string | null;
   request: Request;
 }) {
   const env = getServerEnv();
@@ -22,6 +24,8 @@ export async function sendMetaLead({ eventId, name, email, whatsapp, request }: 
     em: [hash(email)],
     ph: [hash(whatsapp.replace(/\D/g, ""))],
     fn: [hash(name)],
+    ...(fbp ? { fbp } : {}),
+    ...(fbc ? { fbc } : {}),
     client_user_agent: request.headers.get("user-agent") ?? undefined,
   };
   if (forwardedFor) userData.client_ip_address = forwardedFor;
