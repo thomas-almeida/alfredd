@@ -42,12 +42,7 @@ export function LeadCaptureModal({ open, onClose }: { open: boolean; onClose: ()
       return;
     }
     trackMetaEvent("Lead", { content_name: "GTA VI VIP Creator Access", status: "submitted" }, eventId);
-    const message = [
-      "Olá! Quero entrar no grupo VIP de criadores de GTA VI.",
-      `Nome: ${name}`,
-      `Telefone: ${phone}`,
-      `E-mail: ${email}`,
-    ].join("\n");
+    const message = "Cheguei pra lucrar com GTA!";
     const separator = GROUP_URL.includes("?") ? "&" : "?";
 
     window.location.href = `${GROUP_URL}${separator}text=${encodeURIComponent(message)}`;
