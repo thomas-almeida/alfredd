@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import Image from "next/image";
 
 type InstallPromptEvent = Event & {
@@ -11,11 +12,14 @@ type InstallPromptEvent = Event & {
 const DISMISSED_KEY = "alfredd-pwa-guide-dismissed";
 
 export function PwaInstallGuide() {
+  const pathname = usePathname();
   const [visible, setVisible] = useState(false);
   const [ios, setIos] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<InstallPromptEvent | null>(null);
 
   useEffect(() => {
+    if (pathname === "/lp") return;
+
     const mobile = window.matchMedia("(max-width: 700px)");
     const standalone = window.matchMedia("(display-mode: standalone)").matches ||
       ("standalone" in navigator && Boolean((navigator as Navigator & { standalone?: boolean }).standalone));
@@ -42,7 +46,7 @@ export function PwaInstallGuide() {
       window.clearTimeout(timer);
       window.removeEventListener("beforeinstallprompt", onBeforeInstall);
     };
-  }, []);
+  }, [pathname]);
 
   function dismiss() {
     window.localStorage.setItem(DISMISSED_KEY, "1");
@@ -57,7 +61,7 @@ export function PwaInstallGuide() {
     setVisible(false);
   }
 
-  if (!visible) return null;
+  if (pathname === "/lp" || !visible) return null;
 
   return (
     <aside className="fixed inset-x-3 bottom-3 z-[75] mx-auto max-w-md rounded-2xl border border-border-strong bg-surface p-4 shadow-2xl min-[701px]:hidden" aria-label="Instalar o Alfredd como aplicativo">
