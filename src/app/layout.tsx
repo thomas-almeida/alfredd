@@ -12,27 +12,27 @@ export const metadata: Metadata = {
     canonical: "/",
   },
   title: {
-    default: "Alfredd — Descubra os melhores momentos antes que viralizem",
+    default: "O Mapa Para Lucrar Com GTA VI",
     template: "%s · Alfredd",
   },
   description:
-    "Descubra, analise, organize e corte os melhores momentos da Twitch e do YouTube antes que viralizem.",
+    "O GTA VI vai quebrar a internet, e não é possivel que você vai ficar de fora 🎬, até preguiçosos vão ganhar dinheiro com esse método 👇🏻.",
   applicationName: "Alfredd",
   openGraph: {
     type: "website",
     locale: "pt_BR",
     siteName: "Alfredd",
     url: "/",
-    title: "Alfredd — Descubra os melhores momentos antes que viralizem",
+    title: "O Mapa Para Lucrar Com GTA VI",
     description:
-      "Descubra, analise, organize e corte os melhores momentos da Twitch e do YouTube antes que viralizem.",
+      "O GTA VI vai quebrar a internet, e não é possivel que você vai ficar de fora 🎬, até preguiçosos vão ganhar dinheiro com esse método 👇🏻.",
     images: [{ url: "/alfredd-icon.png", width: 1024, height: 1024, alt: "Alfredd" }],
   },
   twitter: {
     card: "summary_large_image",
-    title: "Alfredd — Descubra os melhores momentos antes que viralizem",
+    title: "O Mapa Para Lucrar Com GTA VI",
     description:
-      "Descubra, analise, organize e corte os melhores momentos da Twitch e do YouTube antes que viralizem.",
+      "O GTA VI vai quebrar a internet, e não é possivel que você vai ficar de fora 🎬, até preguiçosos vão ganhar dinheiro com esse método 👇🏻.",
     images: ["/alfredd-icon.png"],
   },
   icons: {
