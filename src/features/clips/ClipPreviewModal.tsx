@@ -150,27 +150,13 @@ export function ClipPreviewModal({
             </span>
           </div>
 
-          <div className="flex items-center gap-3 mt-4">
-            <Button variant="primary" onClick={() => doSave(true)} disabled={(pending && !limited) || (saved && saveMode === "editor")}>
+          <div className="flex items-center gap-3 mt-4 max-[560px]:grid max-[560px]:grid-cols-1 max-[560px]:gap-2">
+            <Button className="max-[560px]:w-full max-[560px]:px-[15.4px] max-[560px]:py-[8.8px]" variant="primary" onClick={() => doSave(true)} disabled={(pending && !limited) || (saved && saveMode === "editor")}>
               {pending && !limited && saveMode === "editor" ? "Salvando…" : "Editar Clipe"}
             </Button>
-            <Button variant="secondary" onClick={() => doSave(false)} disabled={(pending && !limited) || saved}>
+            <Button className="max-[560px]:w-full max-[560px]:px-[15.4px] max-[560px]:py-[8.8px]" variant="secondary" onClick={() => doSave(false)} disabled={(pending && !limited) || saved}>
               {saved ? "Salvo" : pending && !limited && saveMode === "library" ? "Salvando…" : "Salvar na Biblioteca"}
             </Button>
-            <a
-              href={clip.url ?? `https://clips.twitch.tv/${clip.twitchId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-[13px] text-muted hover:text-fg"
-            >
-              Assistir na Twitch ↗
-            </a>
-            <a
-              href={`/clipes/${clip.twitchId}`}
-              className="text-[13px] text-muted hover:text-fg"
-            >
-              Ver detalhes
-            </a>
           </div>
           {msg && <p className="mt-3 text-[13px] text-muted">{msg}</p>}
         </div>

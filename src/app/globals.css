@@ -160,6 +160,10 @@
 }
 
 @media (max-width: 700px) {
+  body:has(.mobile-editor-shell) .support-button {
+    display: none;
+  }
+
   .app-shell-grid.mobile-editor-shell {
     grid-template-rows: 0 1fr;
     min-height: 100dvh;

@@ -65,7 +65,7 @@ export function ClipCard({
             <Icon name="eye" width={14} height={14} />
             {formatViews(clip.viewCount)}
           </span>
-          <span className="inline-flex items-center gap-1">
+          <span suppressHydrationWarning className="inline-flex items-center gap-1">
             <Icon name="clock" width={14} height={14} />
             {timeAgo(clip.createdAt)}
           </span>
