@@ -10,7 +10,7 @@ export function SupportButton() {
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Chamar Suporte"
-      className="support-button group fixed bottom-5 right-5 z-[80] h-14 w-14 rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.45)] transition-transform hover:scale-105 max-[560px]:bottom-3 max-[560px]:right-3 max-[560px]:h-11 max-[560px]:w-11"
+      className="support-button group fixed bottom-5 right-5 z-[80] h-14 w-14 rounded-full shadow-[0_8px_24px_rgba(0,0,0,0.45)] transition-transform hover:scale-105 max-[560px]:bottom-3 max-[560px]:right-3 max-[560px]:h-[3.3rem] max-[560px]:w-[3.3rem]"
     >
       <Image src="/whatsapp.png" alt="" width={56} height={56} className="h-full w-full rounded-full" />
       <span

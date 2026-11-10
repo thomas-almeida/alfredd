@@ -445,8 +445,9 @@
 }
 
 .lp-notification-ticker {
-  position: fixed;
-  inset: 0 0 auto;
+  position: relative;
+  width: 100vw;
+  margin-left: calc(50% - 50vw);
   z-index: 80;
   overflow: hidden;
   border-bottom: 1px solid color-mix(in srgb, var(--lp-pink) 28%, transparent);
@@ -456,9 +457,9 @@
 
 .lp-notification-track {
   display: flex;
-  width: max-content;
-  min-width: 200%;
-  animation: lp-notification-marquee 34s linear infinite;
+  width: 100%;
+  min-width: 100%;
+  justify-content: center;
 }
 
 .lp-notification-item {
@@ -468,10 +469,14 @@
   padding: .7rem 2.25rem;
   color: #d4d4d8;
   font-size: .7rem;
-  font-style: italic;
   font-weight: 600;
   letter-spacing: .02em;
   white-space: nowrap;
+}
+
+.lp-notification-item strong {
+  color: var(--lp-pink);
+  font-variant-numeric: tabular-nums;
 }
 
 .lp-notification-dot {

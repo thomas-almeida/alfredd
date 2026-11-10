@@ -64,11 +64,8 @@ export function LeadCaptureModal({ open, onClose }: { open: boolean; onClose: ()
               Acesso VIP
             </span>
             <h2 id="lead-modal-title" className="text-2xl font-bold tracking-tight">
-              Entre para a lista de criadores
+              Falta Muito Pouco
             </h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-400">
-              Você receberá seu acesso e atualizações após o formulário.
-            </p>
           </div>
           <button type="button" onClick={onClose} className="rounded-full p-2 text-zinc-500 transition hover:bg-white/5 hover:text-white" aria-label="Fechar">
             ✕
@@ -93,9 +90,6 @@ export function LeadCaptureModal({ open, onClose }: { open: boolean; onClose: ()
             {sending ? "Abrindo seu acesso…" : "Garantir acesso →"}
           </button>
           {error && <p className="text-center text-xs text-red-400" role="alert">{error}</p>}
-          <p className="text-center text-[11px] leading-5 text-zinc-500">
-            Ao continuar, você será redirecionado para o WhatsApp.
-          </p>
         </form>
       </div>
       </div>

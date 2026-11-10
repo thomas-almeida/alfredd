@@ -1,15 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import Notify from "@/components/ui/Notify";
+import Notify, { type NotifyMessage } from "@/components/ui/Notify";
 import { LeadCaptureModal } from "./LeadCaptureModal";
 
-export function LpNotifyLeadCapture({ message }: { message: string }) {
+export function LpNotifyLeadCapture({ messages = [] }: { messages?: readonly NotifyMessage[] }) {
   const [open, setOpen] = useState(false);
 
   return (
     <>
-      <Notify message={message} onOpen={() => setOpen(true)} />
+      <Notify messages={messages} onOpen={() => setOpen(true)} />
       <LeadCaptureModal open={open} onClose={() => setOpen(false)} />
     </>
   );

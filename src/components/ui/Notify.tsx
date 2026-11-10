@@ -1,37 +1,55 @@
 "use client";
 
 import Image from "next/image";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 type NotifyProps = {
-    message: string;
+    messages: readonly NotifyMessage[];
     initialDelay?: number;
+    displayDuration?: number;
     repeatDelay?: number;
     onOpen?: () => void;
 };
 
+export type NotifyMessage = {
+    picture: string;
+    name: string;
+    message: string;
+};
+
 export default function Notify({
-    message,
+    messages = [],
     initialDelay = 5000,
-    repeatDelay = 4000,
+    displayDuration = 5000,
+    repeatDelay = 250,
     onOpen,
 }: NotifyProps) {
     const [visible, setVisible] = useState(false);
-    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const [messageIndex, setMessageIndex] = useState(0);
 
     useEffect(() => {
-        timerRef.current = setTimeout(() => setVisible(true), initialDelay);
+        if (!messages.length) return;
 
-        return () => {
-            if (timerRef.current) clearTimeout(timerRef.current);
-        };
-    }, [initialDelay]);
+        const delay = visible
+            ? displayDuration
+            : messageIndex === 0
+                ? initialDelay
+                : repeatDelay;
+        const timer = setTimeout(() => {
+            if (visible) {
+                setVisible(false);
+                setMessageIndex((index) => (index + 1) % messages.length);
+            } else {
+                setVisible(true);
+            }
+        }, delay);
+
+        return () => clearTimeout(timer);
+    }, [displayDuration, initialDelay, messageIndex, messages.length, repeatDelay, visible]);
 
     function dismissNotification() {
         setVisible(false);
-
-        if (timerRef.current) clearTimeout(timerRef.current);
-        timerRef.current = setTimeout(() => setVisible(true), repeatDelay);
+        setMessageIndex((index) => (index + 1) % messages.length);
     }
 
     function openNotification() {
@@ -39,7 +57,10 @@ export default function Notify({
         onOpen?.();
     }
 
-    if (!visible) return null;
+    if (!visible || !messages.length) return null;
+
+    const currentMessage = messages[messageIndex % messages.length];
+    if (!currentMessage) return null;
 
     return (
         <div className="lp-notify" role="status" aria-live="polite">
@@ -56,18 +77,18 @@ export default function Notify({
                 }}
             >
                 <Image
-                    src="/ghost.jpeg"
-                    alt="Notificação"
+                    src={currentMessage.picture}
+                    alt={currentMessage.name}
                     width={48}
                     height={48}
                     className="lp-notify-avatar"
                 />
                 <div className="lp-notify-copy">
                     <div className="lp-notify-heading">
-                        <span className="lp-notify-app">Alfredd</span>
+                        <span className="lp-notify-app">{currentMessage.name}</span>
                         <span className="lp-notify-time">agora</span>
                     </div>
-                    <p className="lp-notify-message">{message}</p>
+                    <p className="lp-notify-message">{currentMessage.message}</p>
                 </div>
                 <button
                     type="button"
