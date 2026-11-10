@@ -8,6 +8,7 @@ import { useEditor } from "@/lib/editor/store";
 import type { ExportMessage, ExportRequest } from "@/lib/export/export.worker";
 import type { Transcript } from "@/lib/transcript/client";
 import { saveToDownloadDirectory } from "@/lib/downloads/directory";
+import { Icon } from "@/components/ui/Icon";
 
 type Phase = "idle" | "encoding" | "uploading" | "done" | "error";
 
@@ -23,6 +24,7 @@ export function ExportPanel({
   persist = true,
   transcript,
   captionsEnabled = false,
+  mobileIconOnly = false,
   onExported,
 }: {
   clipId: string;
@@ -32,6 +34,7 @@ export function ExportPanel({
   persist?: boolean;
   transcript?: Transcript | null;
   captionsEnabled?: boolean;
+  mobileIconOnly?: boolean;
   onExported?: () => void;
 }) {
   const [phase, setPhase] = useState<Phase>("idle");
@@ -151,11 +154,14 @@ export function ExportPanel({
     <div className="flex flex-col gap-2">
       <div className="flex gap-2 flex-wrap">
         <Button variant="primary" onClick={start} disabled={busy}>
-          {phase === "encoding"
-            ? `Exportando… ${Math.round(progress * 100)}%`
-            : phase === "uploading"
-              ? "Enviando…"
-              : "Exportar MP4 1080×1920"}
+          {mobileIconOnly && <Icon name="download" width={18} height={18} />}
+          <span className={mobileIconOnly ? "max-[700px]:sr-only" : ""}>
+            {phase === "encoding"
+              ? `Exportando… ${Math.round(progress * 100)}%`
+              : phase === "uploading"
+                ? "Enviando…"
+                : "Exportar MP4 1080×1920"}
+          </span>
         </Button>
         {phase === "encoding" && (
           <Button variant="ghost" onClick={cancel}>

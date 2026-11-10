@@ -52,7 +52,10 @@ export type IconName =
   | "unlink"
   | "link"
   | "music"
-  | "subtitles";
+  | "subtitles"
+  | "menu"
+  | "close"
+  | "download";
 
 export function Icon({
   name,
@@ -289,6 +292,24 @@ export function Icon({
         <svg {...p}>
           <rect x="3" y="5" width="18" height="14" rx="2" />
           <path d="M6 11h5M13 11h5M6 15h3M11 15h7" />
+        </svg>
+      );
+    case "menu":
+      return (
+        <svg {...p}>
+          <path d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      );
+    case "close":
+      return (
+        <svg {...p}>
+          <path d="m6 6 12 12M18 6 6 18" />
+        </svg>
+      );
+    case "download":
+      return (
+        <svg {...p}>
+          <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
         </svg>
       );
     default:

@@ -117,7 +117,7 @@ function ToolBtn({
       title={label}
       aria-label={label}
       aria-pressed={active}
-      className={`inline-flex items-center justify-center w-8 h-8 rounded-sm transition-colors disabled:opacity-35 disabled:pointer-events-none ${
+      className={`timeline-tool inline-flex items-center justify-center w-8 h-8 rounded-sm transition-colors disabled:opacity-35 disabled:pointer-events-none ${
         active ? "bg-accent/20 text-accent" : "text-muted hover:bg-surface-2 hover:text-fg"
       }`}
     >
@@ -145,6 +145,7 @@ export function Timeline({
   onToggleLoop,
   rate,
   onRate,
+  className,
 }: {
   duration: number;
   sourceUrl: string;
@@ -157,6 +158,7 @@ export function Timeline({
   onToggleLoop: () => void;
   rate: number;
   onRate: (r: number) => void;
+  className?: string;
 }) {
   const segments = useEditor((s) => s.segments);
   const audio = useEditor((s) => s.audio);
@@ -176,7 +178,10 @@ export function Timeline({
   const thumbs = useFilmstrip(sourceUrl, duration);
   const pct = (t: number) => `${(duration ? t / duration : 0) * 100}%`;
   const detached = audio != null;
-  const audioSegs = audio ?? segments;
+  // Com o áudio integrado ao vídeo, a trilha deve permanecer contínua mesmo
+  // quando o vídeo foi dividido em vários trechos. Áudio separado continua
+  // usando seus próprios segmentos para permitir edição independente.
+  const audioSegs = detached ? audio ?? [] : [{ start: 0, end: duration }];
   const videoH = expanded ? 96 : 56;
   const audioH = expanded ? 80 : 44;
 
@@ -362,8 +367,8 @@ export function Timeline({
   const trackH = expanded ? 64 : 40;
 
   return (
-    <div className="flex flex-col gap-1.5 rounded-md border border-border bg-surface p-2">
-      <div className="flex items-center gap-0.5 flex-wrap">
+    <div className={`timeline-shell flex flex-col gap-1.5 rounded-md border border-border bg-surface p-2 ${className ?? ""}`}>
+      <div className="timeline-toolbar flex items-center gap-0.5 flex-wrap">
         <ToolBtn
           icon="scissors"
           label={`Dividir ${editTrack === "audio" ? "áudio" : typeof editTrack === "number" ? `faixa V${editTrack + 1}` : "vídeo"} (S)`}
@@ -395,7 +400,7 @@ export function Timeline({
           }}
         />
 
-        <div className="flex-1 flex items-center justify-center gap-0.5 min-w-[240px]">
+        <div className="timeline-playback flex-1 flex items-center justify-center gap-0.5 min-w-[240px]">
           <ToolBtn icon="skip-back" label="Corte anterior" onClick={() => seekEdge(-1)} />
           <ToolBtn icon={playing ? "pause" : "play"} label={playing ? "Pausar (Espaço)" : "Reproduzir (Espaço)"} onClick={onTogglePlay} />
           <ToolBtn icon="skip-forward" label="Próximo corte" onClick={() => seekEdge(1)} />
@@ -494,7 +499,7 @@ export function Timeline({
           </div>
         </div>
 
-        <div ref={scrollRef} className="flex-1 min-w-0 overflow-x-auto rounded-sm">
+        <div ref={scrollRef} className="flex-1 min-w-0 overflow-x-auto rounded-sm touch-pan-x">
           <div
             ref={barRef}
             className="relative cursor-pointer select-none"
@@ -631,8 +636,14 @@ export function Timeline({
                   selected={detached && selected?.track === "audio" && selected.i === i}
                   onDown={(e) => {
                     e.stopPropagation();
-                    onSelect(detached ? { track: "audio", i } : { track: "video", i });
-                    onSeek(timeAt(e.clientX));
+                    const time = timeAt(e.clientX);
+                    if (detached) {
+                      onSelect({ track: "audio", i });
+                    } else {
+                      const videoSegment = segmentIndexAt(segments, time);
+                      onSelect(videoSegment >= 0 ? { track: "video", i: videoSegment } : null);
+                    }
+                    onSeek(time);
                   }}
                   onEdge={detached ? (e, w) => dragEdge(e, "audio", i, w) : undefined}
                 >
@@ -664,7 +675,7 @@ export function Timeline({
         </div>
       </div>
 
-      <div className="flex justify-between text-[12px] text-muted tabular-nums">
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-[12px] text-muted tabular-nums">
         <span>
           {segments.length} {segments.length === 1 ? "trecho" : "trechos"}
           {detached && ` · áudio separado (${audioSegs.length})`}
@@ -699,7 +710,7 @@ function SegmentBlock({
   const bg = tone === "audio" ? "bg-emerald-500/15" : tone === "overlay" ? "bg-sky-500/25" : "bg-accent/15";
   return (
     <div
-      className={`absolute top-0 bottom-0 rounded-sm overflow-hidden border-2 ${selected ? "border-fg" : border} ${bg}`}
+      className={`absolute top-0 bottom-0 touch-none rounded-sm overflow-hidden border-2 ${selected ? "border-fg" : border} ${bg}`}
       style={{ left, width }}
       onPointerDown={onDown}
     >
@@ -708,7 +719,7 @@ function SegmentBlock({
         (["start", "end"] as const).map((w) => (
           <div
             key={w}
-            className={`absolute top-0 bottom-0 w-2 ${color} cursor-ew-resize ${w === "start" ? "left-0" : "right-0"}`}
+            className={`timeline-edge-handle absolute top-0 bottom-0 w-2 ${color} cursor-ew-resize ${w === "start" ? "left-0" : "right-0"}`}
             onPointerDown={(e) => onEdge(e, w)}
           />
         ))}

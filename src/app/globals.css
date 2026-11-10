@@ -132,6 +132,112 @@
   }
 }
 
+/* O sidebar sai do fluxo no celular; o conteúdo ocupa toda a largura disponível. */
+.app-shell-grid {
+  grid-template-columns: var(--sidebar-w, var(--spacing-sidebar)) 1fr;
+  grid-template-rows: var(--spacing-topbar) 1fr;
+  grid-template-areas: "sidebar topbar" "sidebar main";
+}
+
+@media (max-width: 860px) {
+  .app-shell-grid {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: var(--spacing-topbar) 1fr;
+    grid-template-areas: "topbar" "main" !important;
+  }
+
+  .app-shell-sidebar {
+    position: fixed !important;
+    inset: 0 auto 0 0;
+    z-index: 40;
+    width: min(18rem, 88vw) !important;
+    transform: translateX(-100%);
+  }
+
+  .app-shell-sidebar.mobile-sidebar-open {
+    transform: translateX(0);
+  }
+}
+
+@media (max-width: 700px) {
+  .app-shell-grid.mobile-editor-shell {
+    grid-template-rows: 0 1fr;
+    min-height: 100dvh;
+  }
+
+  .mobile-editor-main {
+    max-width: none !important;
+    padding: 0 !important;
+    padding-bottom: 4.5rem !important;
+  }
+
+  .editor-mobile-stage {
+    min-height: calc(100dvh - 4.5rem);
+    background: #090a0d;
+    color: #fff;
+  }
+
+  .editor-mobile-preview {
+    min-height: min(58dvh, 34rem);
+    overflow: hidden;
+    background: #050506;
+    padding: .75rem .5rem;
+  }
+
+  .editor-mobile-preview,
+  .editor-mobile-preview > div,
+  .editor-mobile-preview video,
+  .editor-mobile-preview canvas {
+    border-radius: 0 !important;
+  }
+
+  .editor-final-preview > div {
+    margin-inline: auto;
+  }
+
+  .editor-raw-preview > div {
+    width: 100%;
+  }
+
+  .editor-mobile-preview .editor-raw-preview,
+  .editor-mobile-preview .editor-final-preview {
+    width: 100%;
+  }
+
+  .editor-mobile-timeline {
+    border-radius: 0;
+    border-left: 0;
+    border-right: 0;
+    background: #111216;
+  }
+
+  .timeline-shell {
+    padding: .65rem;
+  }
+
+  .timeline-toolbar {
+    row-gap: .25rem;
+  }
+
+  .timeline-playback {
+    order: -1;
+    flex: 1 1 100%;
+    min-width: 0 !important;
+    justify-content: flex-start;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: .35rem;
+  }
+
+  .timeline-tool {
+    width: 2.75rem;
+    height: 2.75rem;
+  }
+
+  .timeline-edge-handle {
+    width: 1rem;
+  }
+}
+
 /* Barra indeterminada dos loaders (EditorLoader). */
 @keyframes loader-slide {
   0% {

@@ -4,6 +4,7 @@ import { cn } from "@/lib/cn";
 import { TopBarAuth } from "./TopBarAuth";
 import { GlobalSearch } from "./GlobalSearch";
 import { Brand } from "./Brand";
+import { MobileMenuButton } from "./MobileMenuButton";
 
 export interface Crumb {
   label: string;
@@ -14,14 +15,17 @@ export function TopBar({
   crumbs = [],
   email = null,
   showBrand = true,
+  mobileEditor = false,
 }: {
   crumbs?: Crumb[];
   email?: string | null;
   showBrand?: boolean;
+  mobileEditor?: boolean;
 }) {
   return (
-    <header className="[grid-area:topbar] sticky top-0 z-20 flex items-center justify-between gap-4 h-(--spacing-topbar) px-6 border-b border-border bg-bg/85 backdrop-blur-md">
+    <header className={`[grid-area:topbar] sticky top-0 z-20 flex items-center justify-between gap-4 h-(--spacing-topbar) px-6 max-[860px]:px-3 border-b border-border bg-bg/85 backdrop-blur-md ${mobileEditor ? "max-[700px]:hidden" : ""}`}>
       <div className="flex items-center gap-3 min-w-0">
+        {email && <MobileMenuButton />}
         {showBrand && <Brand />}
 
         {crumbs.length > 0 && <span className="text-subtle">/</span>}

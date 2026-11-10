@@ -37,6 +37,8 @@ import { ExportPanel } from "./ExportPanel";
 import { LeaveGuard } from "./LeaveGuard";
 import { Icon } from "@/components/ui/Icon";
 import { Timeline, type Selection } from "./Timeline";
+import { MobileEditorToolbar, type MobileEditorTool } from "./MobileEditorToolbar";
+import { MobileEditorTopBar } from "./MobileEditorTopBar";
 import { nextClip } from "./actions";
 import { TranscriptPanel } from "./TranscriptPanel";
 import { windowTranscript, type Transcript } from "@/lib/transcript/client";
@@ -250,6 +252,7 @@ export function ClipEditor({
       title={title}
       transcriptUrl={external?.transcriptUrl ?? (youtube ? `https://www.youtube.com/watch?v=${youtube.videoId}` : `https://clips.twitch.tv/${twitchId}`)}
       transcriptWindow={transcriptWindow}
+      showTranscript={Boolean(youtube)}
       saving={saving}
     />
   );
@@ -261,6 +264,7 @@ function EditorBody({
   title,
   transcriptUrl,
   transcriptWindow,
+  showTranscript,
   saving,
 }: {
   ingest: Ingest;
@@ -268,6 +272,7 @@ function EditorBody({
   title: string;
   transcriptUrl: string;
   transcriptWindow?: { startMs: number; endMs: number };
+  showTranscript: boolean;
   saving: "idle" | "saving" | "saved";
 }) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -287,7 +292,22 @@ function EditorBody({
   const [exported, setExported] = useState(ingest.status === "exportado");
   const [transcript, setTranscript] = useState<Transcript | null>(null);
   const [captionsEnabled, setCaptionsEnabled] = useState(false);
-  const [transcriptOpen, setTranscriptOpen] = useState(true);
+  // No celular, o vídeo e a timeline são a prioridade; a transcrição só é
+  // oferecida nas edições do YouTube por enquanto.
+  const [transcriptOpen, setTranscriptOpen] = useState(showTranscript);
+  const [mobilePreview, setMobilePreview] = useState<"final" | "raw">("final");
+  const [mobileTool, setMobileTool] = useState<MobileEditorTool>("trim");
+  const canUndo = useEditor((s) => s.past.length > 0);
+  const canRedo = useEditor((s) => s.future.length > 0);
+  useEffect(() => {
+    const mobile = window.matchMedia("(max-width: 700px)");
+    const closeOnMobile = () => {
+      if (!showTranscript || mobile.matches) setTranscriptOpen(false);
+    };
+    closeOnMobile();
+    mobile.addEventListener("change", closeOnMobile);
+    return () => mobile.removeEventListener("change", closeOnMobile);
+  }, [showTranscript]);
   // Transcrição recortada e em tempos relativos ao arquivo servido.
   const windowStart = transcriptWindow?.startMs;
   const windowEnd = transcriptWindow?.endMs;
@@ -454,13 +474,34 @@ function EditorBody({
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-3 flex-wrap">
+    <div className="editor-mobile-stage flex flex-col gap-4 max-[700px]:gap-0">
+      <MobileEditorTopBar
+        saving={saving}
+        canUndo={canUndo}
+        canRedo={canRedo}
+        onBack={() => router.back()}
+        onUndo={() => useEditor.getState().undo()}
+        onRedo={() => useEditor.getState().redo()}
+      >
+        <ExportPanel
+          clipId={ingest.clipId}
+          persist={ingest.persist}
+          userId={userId}
+          sourceUrl={ingest.sourceUrl}
+          transcript={editorTranscript}
+          captionsEnabled={captionsEnabled}
+          fileName={`${(ingest.channel ?? "clip").replace(/\W+/g, "_")}-${title.slice(0, 40).replace(/\W+/g, "_")}.mp4`}
+          mobileIconOnly
+          onExported={() => setExported(true)}
+        />
+      </MobileEditorTopBar>
+
+      <div className="flex items-center gap-3 flex-wrap max-[700px]:hidden">
         {ingest.persist && <ClipStatusBadge clipId={ingest.clipId} initial={ingest.status} />}
         <span className="text-[13px] text-muted">
           {saving === "saving" ? "Salvando…" : saving === "saved" ? "Alterações salvas" : ""}
         </span>
-        <div className="ml-auto flex gap-2">
+        <div className="ml-auto flex gap-2 max-[700px]:ml-0 max-[700px]:w-full max-[700px]:flex-wrap">
           <ExportPanel
             clipId={ingest.clipId}
             persist={ingest.persist}
@@ -492,7 +533,7 @@ function EditorBody({
         </p>
       )}
 
-      {!transcriptOpen && (
+      {showTranscript && !transcriptOpen && (
         <div className="flex">
           <button
             type="button"
@@ -507,10 +548,29 @@ function EditorBody({
         </div>
       )}
 
-      <div className={`grid gap-5 items-start max-[700px]:grid-cols-1 ${transcriptOpen
+      <div className="mobile-editor-tabs hidden max-[700px]:grid grid-cols-2 gap-1 rounded-lg border border-border bg-surface p-1">
+        <button
+          type="button"
+          className={`rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${mobilePreview === "final" ? "bg-accent text-accent-fg" : "text-muted hover:bg-surface-2 hover:text-fg"}`}
+          aria-pressed={mobilePreview === "final"}
+          onClick={() => setMobilePreview("final")}
+        >
+          Vídeo final
+        </button>
+        <button
+          type="button"
+          className={`rounded-md px-3 py-2.5 text-sm font-medium transition-colors ${mobilePreview === "raw" ? "bg-accent text-accent-fg" : "text-muted hover:bg-surface-2 hover:text-fg"}`}
+          aria-pressed={mobilePreview === "raw"}
+          onClick={() => setMobilePreview("raw")}
+        >
+          Conteúdo bruto
+        </button>
+      </div>
+
+      <div className={`editor-layout grid gap-5 items-start max-[700px]:grid-cols-1 ${transcriptOpen
         ? "grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(250px,300px)] max-[1200px]:grid-cols-[280px_minmax(0,1fr)]"
         : "grid-cols-[minmax(0,1fr)_minmax(250px,300px)] max-[1200px]:grid-cols-1"}`}>
-        {transcriptOpen && <aside id="editor-transcript-sidebar" className="sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto max-[700px]:static max-[700px]:max-h-none">
+        {showTranscript && transcriptOpen && <aside id="editor-transcript-sidebar" className="editor-transcript-sidebar sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto max-[700px]:order-10 max-[700px]:static max-[700px]:max-h-none">
           <div className="mb-2 flex justify-end">
             <button
               type="button"
@@ -538,30 +598,35 @@ function EditorBody({
           />
         </aside>}
 
-        <div className="flex flex-col gap-3">
+        <div className="editor-source-column flex flex-col gap-3 max-[700px]:contents">
           <div
-            className="relative bg-black rounded-md overflow-hidden select-none"
-            style={{ aspectRatio: `${src.w} / ${src.h}` }}
+            className={`editor-mobile-preview editor-raw-preview max-[700px]:order-1 ${mobilePreview === "raw" ? "max-[700px]:flex max-[700px]:items-center max-[700px]:justify-center" : "max-[700px]:hidden"}`}
           >
-            <video
-              ref={videoRef}
-              src={ingest.sourceUrl}
-              crossOrigin="anonymous"
-              playsInline
-              preload="auto"
-              className="absolute inset-0 w-full h-full"
-              onClick={togglePlay}
-              onLoadStart={() => setVideoState("loading")}
-              onLoadedData={() => setVideoState("ready")}
-              onCanPlay={() => setVideoState("ready")}
-              onPlaying={() => setVideoState("ready")}
-              onWaiting={() => setVideoState((s) => (s === "ready" ? "buffering" : s))}
-              onError={() => setVideoState("error")}
-            />
-          <FocusOverlay srcW={src.w} srcH={src.h} />
-          <VideoLoadingOverlay state={videoState} progressUrl={ingest.progressUrl} durationMs={ingest.duration * 1000} />
+            <div
+            className="relative w-full bg-black rounded-md max-[700px]:rounded-none overflow-hidden select-none"
+            style={{ aspectRatio: `${src.w} / ${src.h}` }}
+            >
+              <video
+                ref={videoRef}
+                src={ingest.sourceUrl}
+                crossOrigin="anonymous"
+                playsInline
+                preload="auto"
+                className="absolute inset-0 w-full h-full"
+                onClick={togglePlay}
+                onLoadStart={() => setVideoState("loading")}
+                onLoadedData={() => setVideoState("ready")}
+                onCanPlay={() => setVideoState("ready")}
+                onPlaying={() => setVideoState("ready")}
+                onWaiting={() => setVideoState((s) => (s === "ready" ? "buffering" : s))}
+                onError={() => setVideoState("error")}
+              />
+              <FocusOverlay srcW={src.w} srcH={src.h} />
+              <VideoLoadingOverlay state={videoState} progressUrl={ingest.progressUrl} durationMs={ingest.duration * 1000} />
+            </div>
           </div>
           <Timeline
+            className="editor-mobile-timeline max-[700px]:order-2"
             duration={ingest.duration}
             sourceUrl={ingest.sourceUrl}
             selected={selected}
@@ -574,7 +639,7 @@ function EditorBody({
             rate={rate}
             onRate={setRate}
           />
-          <div className="flex items-center gap-2 flex-wrap text-[13px] text-muted">
+          <div className={`editor-audio-controls flex items-center gap-2 flex-wrap text-[13px] text-muted max-[700px]:order-3 ${mobileTool === "audio" ? "" : "max-[700px]:hidden"}`}>
             <div className="flex items-center gap-1.5">
               <button
                 type="button"
@@ -600,7 +665,7 @@ function EditorBody({
               />
               <span className="w-9 tabular-nums">{Math.round((muted ? 0 : volume) * 100)}%</span>
             </div>
-            <button
+            {showTranscript && <button
               type="button"
               onClick={() => setCaptionsEnabled((v) => !v)}
               disabled={!transcript}
@@ -611,17 +676,62 @@ function EditorBody({
             >
               <Icon name="subtitles" width={16} height={16} />
               <span className="text-xs">Legendas</span>
-            </button>
+            </button>}
           </div>
         </div>
 
-        <div className={`flex flex-col gap-4 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto ${transcriptOpen ? "max-[1200px]:col-span-2" : "max-[1200px]:col-span-1"} max-[700px]:col-span-1 max-[700px]:static max-[700px]:max-h-none`}>
-          <VerticalPreview videoRef={videoRef} srcW={src.w} srcH={src.h} transcript={editorTranscript} captionsEnabled={captionsEnabled} />
-          <ImageOverlayControls />
-          <FocusLayoutPicker srcW={src.w} srcH={src.h} />
-          <KeyframeControls />
-          <MotionControls videoRef={videoRef} sourceUrl={ingest.sourceUrl} srcW={src.w} srcH={src.h} />
-          <LeaveGuard active={!exported} />
+        <div className={`editor-final-column flex flex-col gap-4 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto ${transcriptOpen ? "max-[1200px]:col-span-2" : "max-[1200px]:col-span-1"} max-[700px]:contents`}>
+          <div className={`editor-mobile-preview editor-final-preview max-[700px]:order-1 ${mobilePreview === "final" ? "" : "max-[700px]:hidden"}`}>
+            <VerticalPreview videoRef={videoRef} srcW={src.w} srcH={src.h} transcript={editorTranscript} captionsEnabled={captionsEnabled} />
+          </div>
+          <div className="editor-controls-column flex flex-col gap-4 max-[700px]:contents">
+            <MobileEditorToolbar activeTool={mobileTool} onChange={setMobileTool} hasTextTool={showTranscript} />
+            <div className="editor-control-sections flex flex-col gap-4 max-[700px]:order-5">
+              <div className={mobileTool === "trim" ? "" : "max-[700px]:hidden"}>
+                <FocusLayoutPicker srcW={src.w} srcH={src.h} />
+                <KeyframeControls />
+              </div>
+              <div className={mobileTool === "text" ? "rounded-md border border-border bg-surface p-3 max-[700px]:block" : "max-[700px]:hidden"}>
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-fg">Texto e legendas</p>
+                    <p className="mt-1 text-xs text-muted">Ative as legendas da transcrição no vídeo final.</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setCaptionsEnabled((v) => !v)}
+                    disabled={!transcript}
+                    aria-pressed={captionsEnabled}
+                    className={`rounded-md px-3 py-2 text-xs font-semibold ${captionsEnabled ? "bg-accent text-accent-fg" : "bg-surface-2 text-muted"}`}
+                  >
+                    {captionsEnabled ? "Ativadas" : "Ativar"}
+                  </button>
+                </div>
+              </div>
+              <div className={mobileTool === "effects" ? "" : "max-[700px]:hidden"}>
+                <MotionControls videoRef={videoRef} sourceUrl={ingest.sourceUrl} srcW={src.w} srcH={src.h} />
+              </div>
+              <div className={mobileTool === "brand" ? "" : "max-[700px]:hidden"}>
+                <ImageOverlayControls />
+              </div>
+              <div className={mobileTool === "speed" ? "rounded-md border border-border bg-surface p-3 max-[700px]:block" : "max-[700px]:hidden"}>
+                <p className="text-sm font-medium text-fg">Velocidade</p>
+                <div className="mt-3 grid grid-cols-4 gap-2">
+                  {[0.5, 1, 1.5, 2].map((value) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setRate(value)}
+                      className={`rounded-md border px-2 py-2 text-xs ${rate === value ? "border-accent bg-accent/15 text-accent" : "border-border text-muted"}`}
+                    >
+                      {value.toLocaleString("pt-BR")}×
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <LeaveGuard active={!exported} />
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -677,7 +787,7 @@ function FocusOverlay({ srcW, srcH }: { srcW: number; srcH: number }) {
         return (
           <div
             key={pane.id}
-            className={`absolute border-2 pointer-events-auto cursor-move ${isActive ? "border-accent" : "border-white/40"}`}
+            className={`absolute border-2 pointer-events-auto touch-none cursor-move ${isActive ? "border-accent" : "border-white/40"}`}
             style={{ left: `${r.x * 100}%`, top: `${r.y * 100}%`, width: `${r.w * 100}%`, height: `${r.h * 100}%`, borderColor: color, opacity: isActive ? 1 : 0.72, boxShadow: isActive ? `0 0 0 9999px rgba(0,0,0,0.45), 0 0 0 2px ${color}55` : undefined, zIndex: isActive ? 2 : 1 }}
             onPointerDown={(e) => drag(e, pane.id, "move")}
             onDoubleClick={() => recenter(pane)}
@@ -755,7 +865,7 @@ function CropOverlay({
         return (
           <div
             key={key}
-            className={`absolute border-2 pointer-events-auto cursor-move ${
+            className={`absolute border-2 pointer-events-auto touch-none cursor-move ${
               isActive ? "border-accent" : "border-white/40"
             }`}
             style={{
@@ -948,11 +1058,11 @@ function VerticalPreview({
   }
 
   return (
-    <div ref={frameRef} className="relative self-center" style={{ width: PW, height: PH }}>
-      <canvas ref={canvasRef} width={PW} height={PH} className="rounded-md border border-border bg-black" style={{ width: PW, height: PH }} />
+    <div ref={frameRef} className="relative self-center max-[700px]:max-w-full" style={{ width: PW, height: PH }}>
+      <canvas ref={canvasRef} width={PW} height={PH} className="rounded-md max-[700px]:rounded-none border border-border bg-black" style={{ width: PW, height: PH }} />
       {captionsEnabled && currentLine && (
         <div
-          className="absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-move rounded border-2 border-amber-400 px-2 py-1 text-[10px] font-semibold text-amber-100 bg-black/35"
+          className="absolute z-10 -translate-x-1/2 -translate-y-1/2 touch-none cursor-move rounded border-2 border-amber-400 px-2 py-1 text-[10px] font-semibold text-amber-100 bg-black/35"
           style={{ left: `${captionPosition.x * 100}%`, top: `${captionPosition.y * 100}%` }}
           onPointerDown={dragCaption}
           title="Arraste para posicionar a legenda"
@@ -963,7 +1073,7 @@ function VerticalPreview({
       {overlaysAt(useEditor.getState(), currentTime).map((overlay) => (
         <div
           key={overlay.id}
-          className="absolute z-10 -translate-x-1/2 -translate-y-1/2 cursor-move rounded border-2 border-sky-400 bg-sky-500/10"
+          className="absolute z-10 -translate-x-1/2 -translate-y-1/2 touch-none cursor-move rounded border-2 border-sky-400 bg-sky-500/10"
           style={{ left: `${overlay.x * 100}%`, top: `${overlay.y * 100}%`, width: `${overlay.width * 100}%`, height: `${overlay.height * 100}%` }}
           onPointerDown={(e) => dragOverlay(e, overlay)}
           title="Arraste para posicionar a imagem"

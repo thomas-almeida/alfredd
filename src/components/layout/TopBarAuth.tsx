@@ -14,7 +14,7 @@ export function TopBarAuth({ email }: { email: string | null }) {
     return (
       <>
         <span
-          className="text-[13px] text-muted max-w-[180px] truncate"
+          className="text-[13px] text-muted max-w-[180px] truncate max-[640px]:hidden"
           title={email}
         >
           {email}

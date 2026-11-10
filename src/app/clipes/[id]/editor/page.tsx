@@ -54,13 +54,14 @@ export default async function ClipEditorPage({
 
   return (
     <AppShell
+      mobileEditor
       crumbs={[
         { label: "Clipes" },
         { label: channel || id, href: `/clipes/${id}` },
         { label: "Editor" },
       ]}
     >
-      <PageHeader title={title || "Editor de clipe"} subtitle="Corte, enquadre e exporte em 9:16" />
+      <PageHeader title={title || "Editor de clipe"} subtitle="Corte, enquadre e exporte em 9:16" hideTitleOnMobile className="max-[700px]:hidden" />
       {blocked ? (
         <>
           <EmptyState icon="bookmark" title="Limite do plano Free atingido" description="Assine o PRO para salvar e editar mais clipes." />

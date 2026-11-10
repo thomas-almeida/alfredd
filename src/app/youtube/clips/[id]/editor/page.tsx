@@ -20,8 +20,8 @@ export default async function YoutubeEditorPage({ params, searchParams }: { para
   const queryEnd = Number(query.end);
   const startMs = Number.isFinite(queryStart) && Number.isFinite(queryEnd) && queryEnd > queryStart ? queryStart : data.start_ms;
   const endMs = Number.isFinite(queryStart) && Number.isFinite(queryEnd) && queryEnd > queryStart ? queryEnd : data.end_ms;
-  return <AppShell crumbs={[{ label: "YouTube", href: "/youtube" }, { label: "Transcrição", href: `/youtube/clips/${id}` }, { label: "Editor" }]}>
-    <PageHeader title={data.title} subtitle={`${data.channel_title ?? "YouTube"} · editor de corte`} />
+  return <AppShell mobileEditor crumbs={[{ label: "YouTube", href: "/youtube" }, { label: "Transcrição", href: `/youtube/clips/${id}` }, { label: "Editor" }]}>
+    <PageHeader title={data.title} subtitle={`${data.channel_title ?? "YouTube"} · editor de corte`} hideTitleOnMobile className="max-[700px]:hidden" />
     <ClipEditor
       twitchId={data.video_id}
       userId={session.userId}

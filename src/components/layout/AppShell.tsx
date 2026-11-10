@@ -21,10 +21,12 @@ export async function AppShell({
   crumbs,
   children,
   wide = false,
+  mobileEditor = false,
 }: {
   crumbs?: Crumb[];
   children: ReactNode;
   wide?: boolean;
+  mobileEditor?: boolean;
 }) {
   const session = await getSession();
   const authed = Boolean(session);
@@ -96,18 +98,18 @@ export async function AppShell({
   return (
     <AuthModalProvider>
       <div
-        className="grid min-h-screen max-[860px]:[grid-template-columns:1fr!important] max-[860px]:[grid-template-areas:'topbar'_'main']"
+        className={`app-shell-grid grid min-h-screen ${mobileEditor ? "mobile-editor-shell" : ""}`}
         style={authed ? authedGrid : publicGrid}
       >
         {authed && <Sidebar clipCount={clipCount} creators={favCreators} games={favGames} />}
-        <TopBar crumbs={crumbs} email={session?.email ?? null} showBrand={!authed} />
+        <TopBar crumbs={crumbs} email={session?.email ?? null} showBrand={!authed} mobileEditor={mobileEditor} />
         <main
           className={
             authed
               ? wide
-                ? "[grid-area:main] min-w-0 w-full max-w-none overflow-x-hidden p-3 max-[860px]:p-4"
-                : "[grid-area:main] min-w-0 overflow-x-hidden p-6 max-w-[1400px] w-full mx-auto max-[860px]:p-4"
-              : "[grid-area:main] min-w-0 overflow-x-hidden p-6 w-full max-w-[1120px] mx-auto max-[860px]:p-4"
+                ? `app-shell-main [grid-area:main] min-w-0 w-full max-w-none overflow-x-hidden p-3 max-[860px]:p-4 ${mobileEditor ? "mobile-editor-main" : ""}`
+                : `app-shell-main [grid-area:main] min-w-0 overflow-x-hidden p-6 max-w-[1400px] w-full mx-auto max-[860px]:p-4 ${mobileEditor ? "mobile-editor-main" : ""}`
+              : `app-shell-main [grid-area:main] min-w-0 overflow-x-hidden p-6 w-full max-w-[1120px] mx-auto max-[860px]:p-4 ${mobileEditor ? "mobile-editor-main" : ""}`
           }
         >
           {children}
@@ -123,17 +125,21 @@ export function PageHeader({
   subtitle,
   badges,
   actions,
+  hideTitleOnMobile = false,
+  className = "",
 }: {
   title: ReactNode;
   subtitle?: ReactNode;
   badges?: ReactNode;
   actions?: ReactNode;
+  hideTitleOnMobile?: boolean;
+  className?: string;
 }) {
   return (
-    <div className="flex items-start justify-between gap-4 mb-6">
+    <div className={`flex items-start justify-between gap-4 mb-6 ${className}`}>
       <div>
         {badges && <div className="flex gap-2 mb-3">{badges}</div>}
-        <h1 className="text-[2.25rem] font-bold">{title}</h1>
+        <h1 className={`text-[2.25rem] font-bold ${hideTitleOnMobile ? "max-[700px]:hidden" : ""}`}>{title}</h1>
         {subtitle && (
           <p className="text-muted mt-2 max-w-[64ch]">{subtitle}</p>
         )}

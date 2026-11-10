@@ -50,6 +50,7 @@ export function Sidebar({
   const pathname = usePathname();
   const selectedChannel = useSearchParams().get("channel");
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const [streamersHidden, setStreamersHidden] = useState(false);
   const [gamesHidden, setGamesHidden] = useState(false);
   const [removedCreators, setRemovedCreators] = useState<Set<string>>(new Set());
@@ -65,6 +66,16 @@ export function Sidebar({
       setCollapsed(inEditor || localStorage.getItem(COLLAPSED_KEY) === "1");
     } catch {}
   }, [inEditor]);
+
+  useEffect(() => {
+    const toggleMobile = () => setMobileOpen((open) => !open);
+    window.addEventListener("alfredd:toggle-mobile-sidebar", toggleMobile);
+    return () => window.removeEventListener("alfredd:toggle-mobile-sidebar", toggleMobile);
+  }, []);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     try {
@@ -136,7 +147,16 @@ export function Sidebar({
   }
 
   return (
-    <aside className={cn("[grid-area:sidebar] flex flex-col w-(--sidebar-w,var(--spacing-sidebar)) h-screen sticky top-0 border-r border-border bg-bg overflow-hidden transition-[width] duration-200", collapsed ? "p-2" : "p-4", " max-[860px]:fixed max-[860px]:z-40 max-[860px]:-translate-x-full")}>
+    <>
+      {mobileOpen && (
+        <button
+          type="button"
+          aria-label="Fechar menu"
+          className="app-shell-sidebar-backdrop fixed inset-0 z-30 bg-black/60 min-[861px]:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+      <aside className={cn("app-shell-sidebar [grid-area:sidebar] flex flex-col w-(--sidebar-w,var(--spacing-sidebar)) h-screen sticky top-0 border-r border-border bg-bg overflow-hidden transition-[width,transform] duration-200", collapsed ? "p-2" : "p-4", mobileOpen ? "mobile-sidebar-open max-[860px]:translate-x-0" : "max-[860px]:-translate-x-full")}>
       <div className={cn("flex items-center gap-2 pt-2 pb-6", collapsed ? "flex-col px-0" : "px-2")}>
         <Brand collapsed={collapsed} />
         <button
@@ -347,6 +367,7 @@ export function Sidebar({
           <div className="mt-5 flex justify-end gap-2"><button type="button" className="rounded px-3 py-2 text-sm text-muted hover:bg-surface-2" disabled={removing} onClick={() => setConfirmCreator(null)}>Cancelar</button><button type="button" className="rounded bg-danger px-3 py-2 text-sm font-semibold text-white hover:brightness-110" disabled={removing} onClick={confirmRemove}>{removing ? "Removendo…" : "Desfavoritar"}</button></div>
         </div>
       </div>}
-    </aside>
+      </aside>
+    </>
   );
 }
