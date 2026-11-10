@@ -56,7 +56,7 @@ export function LeadCaptureModal({ open, onClose }: { open: boolean; onClose: ()
   return createPortal(
     (
     <div
-      className="fixed inset-0 z-[999] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm sm:items-center"
+      className="lp-modal-theme fixed inset-0 z-[999] flex items-start justify-center overflow-y-auto bg-black/80 p-4 backdrop-blur-sm sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-labelledby="lead-modal-title"
@@ -65,14 +65,14 @@ export function LeadCaptureModal({ open, onClose }: { open: boolean; onClose: ()
       <div className="lp-modal my-auto max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-y-auto rounded-2xl border border-white/10 bg-[#151517] p-5 shadow-2xl sm:p-8">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <span className="mb-3 inline-flex rounded-full border border-[#b4f34a]/25 bg-[#b4f34a]/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#b4f34a]">
+          <span className="lp-badge mb-3 inline-flex rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em]">
               Acesso VIP
             </span>
             <h2 id="lead-modal-title" className="text-2xl font-bold tracking-tight">
               Entre para a lista de criadores
             </h2>
             <p className="mt-2 text-sm leading-6 text-zinc-400">
-              Deixe seus dados e siga direto para o grupo onde vamos liberar os próximos acessos.
+              Você receberá seu acesso e atualizações após o formulário.
             </p>
           </div>
           <button type="button" onClick={onClose} className="rounded-full p-2 text-zinc-500 transition hover:bg-white/5 hover:text-white" aria-label="Fechar">

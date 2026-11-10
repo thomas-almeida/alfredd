@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+@font-face {
+  font-family: "Price Down";
+  src: url("/fonts/pricedownbl.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
 /*
  * Design tokens — Clipes (tema escuro, derivado de ai/design-system-examples/).
  * Mapeados no @theme do Tailwind v4, gerando utilities (bg-surface, text-muted,
@@ -33,6 +41,7 @@
   /* Tipografia */
   --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
     Arial, sans-serif;
+  --font-pricedown: "Price Down", Impact, "Arial Narrow Bold", sans-serif;
   --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas,
     monospace;
 
@@ -44,6 +53,22 @@
   /* Layout */
   --spacing-sidebar: 248px;
   --spacing-topbar: 56px;
+}
+
+/* Fonte display local disponível em public/fonts/pricedownbl.ttf. */
+.font-pricedown {
+  font-family: var(--font-pricedown);
+  font-style: normal;
+  font-weight: 400;
+}
+
+/* Variante pronta para títulos e chamadas da landing page. */
+.lp-font-display {
+  font-family: var(--font-pricedown);
+  font-style: normal;
+  font-weight: 400;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
 }
 
 @layer base {
@@ -265,13 +290,57 @@
   animation-delay: .24s;
 }
 
+.lp-theme,
+.lp-modal-theme {
+  --lp-bg: #08010f;
+  --lp-surface: #12051d;
+  --lp-surface-2: #1d0a2d;
+  --lp-fg: #f6f1ff;
+  --lp-muted: #c8bad8;
+  --lp-pink: #ff2e88;
+  --lp-pink-light: #ff6fae;
+  --lp-cyan: #21d4fd;
+  --lp-purple: #7b2ff7;
+  --lp-dark: #180016;
+}
+
+.lp-theme {
+  color: var(--lp-fg);
+}
+
+.lp-pink-text {
+  color: var(--lp-pink) !important;
+}
+
+.lp-pink-surface {
+  background: var(--lp-pink);
+  color: var(--lp-dark);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--lp-pink) 35%, transparent);
+}
+
+.lp-badge {
+  border-color: color-mix(in srgb, var(--lp-pink) 40%, transparent);
+  background: color-mix(in srgb, var(--lp-pink) 12%, transparent);
+  color: var(--lp-pink);
+}
+
+.lp-badge-dot {
+  background: var(--lp-cyan);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--lp-cyan) 80%, transparent);
+}
+
+.lp-cta-section {
+  background: linear-gradient(135deg, var(--lp-pink), var(--lp-purple) 58%, var(--lp-cyan));
+  color: var(--lp-fg);
+}
+
 .lp-notification-ticker {
   position: fixed;
   inset: 0 0 auto;
   z-index: 80;
   overflow: hidden;
-  border-bottom: 1px solid rgba(180, 243, 74, .18);
-  background: rgba(9, 9, 10, .88);
+  border-bottom: 1px solid color-mix(in srgb, var(--lp-pink) 28%, transparent);
+  background: color-mix(in srgb, var(--lp-bg) 88%, transparent);
   backdrop-filter: blur(14px);
 }
 
@@ -298,8 +367,8 @@
 .lp-notification-dot {
   width: .4rem;
   height: .4rem;
-  background: #b4f34a;
-  box-shadow: 0 0 12px rgba(180, 243, 74, .8);
+  background: var(--lp-pink);
+  box-shadow: 0 0 12px color-mix(in srgb, var(--lp-pink) 80%, transparent);
 }
 
 .lp-orb {
@@ -316,7 +385,7 @@
   height: 23rem;
   top: -4rem;
   left: 5%;
-  background: #b4f34a;
+  background: var(--lp-pink);
 }
 
 .lp-orb-two {
@@ -324,7 +393,7 @@
   height: 20rem;
   right: 2%;
   bottom: 0;
-  background: #9147ff;
+  background: var(--lp-cyan);
   animation-delay: -3s;
 }
 
@@ -333,21 +402,22 @@
   align-items: center;
   gap: .7rem;
   border-radius: .7rem;
-  background: #b4f34a;
+  background: linear-gradient(135deg, var(--lp-pink), var(--lp-purple));
   padding: .95rem 1.35rem;
-  color: #0a0a0b;
+  color: #fff;
   font-size: 16pt;
   text-transform: uppercase;
   font-weight: 900;
   text-align: center;
   transition: transform .2s ease, box-shadow .2s ease, background .2s ease;
-  box-shadow: 0 12px 30px -14px rgba(180, 243, 74, .85);
+  box-shadow: 0 14px 40px -14px color-mix(in srgb, var(--lp-pink) 65%, transparent),
+    inset 0 0 0 2px rgba(255, 255, 255, .18);
 }
 
 .lp-button:hover {
   transform: translateY(-2px);
-  background: #c5fb68;
-  box-shadow: 0 18px 36px -14px rgba(180, 243, 74, .9);
+  background: linear-gradient(135deg, var(--lp-pink-light), var(--lp-cyan));
+  box-shadow: 0 18px 40px -14px color-mix(in srgb, var(--lp-cyan) 65%, transparent);
 }
 
 .lp-video-card {
@@ -363,7 +433,7 @@
 
 .lp-video-card:hover {
   transform: translateY(-8px) rotate(1deg);
-  border-color: rgba(180, 243, 74, .5);
+  border-color: color-mix(in srgb, var(--lp-pink) 70%, transparent);
 }
 
 .lp-video-card video {
@@ -383,7 +453,7 @@
 
 .lp-step:hover {
   transform: translateY(-6px);
-  background: rgba(180, 243, 74, .06);
+  background: color-mix(in srgb, var(--lp-pink) 8%, transparent);
 }
 
 .lp-faq {
@@ -407,12 +477,117 @@
 }
 
 .lp-input:focus {
-  border-color: #b4f34a;
-  box-shadow: 0 0 0 3px rgba(180, 243, 74, .12);
+  border-color: var(--lp-pink);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lp-pink) 16%, transparent);
 }
 
 .lp-modal {
   animation: lp-rise .25s ease-out both;
+  background: var(--lp-surface-2) !important;
+}
+
+@keyframes lp-notify-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -130%) scale(.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+.lp-notify {
+  position: fixed;
+  top: .75rem;
+  left: 50%;
+  z-index: 9999;
+  width: min(calc(100vw - 1rem), 25rem);
+  transform: translateX(-50%);
+  animation: lp-notify-in .35s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.lp-notify-card {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  cursor: pointer;
+  border: 1px solid #e5e7eb;
+  border-radius: .95rem;
+  padding: .65rem .7rem .65rem .65rem;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, .18), 0 2px 8px rgba(0, 0, 0, .08);
+  color: #111827;
+  transition: transform .2s ease, box-shadow .2s ease;
+}
+
+.lp-notify-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, .2), 0 3px 10px rgba(0, 0, 0, .08);
+}
+
+.lp-notify-avatar {
+  flex: 0 0 auto;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: 0;
+  border-radius: 999px;
+  object-fit: cover;
+}
+
+.lp-notify-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.lp-notify-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+}
+
+.lp-notify-app {
+  color: #111827;
+  font-size: .78rem;
+  font-weight: 800;
+}
+
+.lp-notify-time {
+  color: #6b7280;
+  font-size: .65rem;
+}
+
+.lp-notify-message {
+  overflow: hidden;
+  margin: .15rem 0 0;
+  color: #111827;
+  font-size: .78rem;
+  line-height: 1.3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-notify-close {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: 1.7rem;
+  height: 1.7rem;
+  border: 0;
+  border-radius: 999px;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 1.2rem;
+  line-height: 1;
+  transition: background .2s ease, color .2s ease;
+}
+
+.lp-notify-close:hover {
+  background: #e5e7eb;
+  color: #111827;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -420,7 +595,8 @@
   .lp-reveal,
   .lp-orb,
   .lp-modal,
-  .lp-notification-track {
+  .lp-notification-track,
+  .lp-notify {
     animation: none;
   }
 

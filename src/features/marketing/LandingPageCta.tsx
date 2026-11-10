@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { LeadCaptureModal } from "./LeadCaptureModal";
 
-export function LandingPageCta({ label = "Garantir acesso" }: { label?: string }) {
+export function LandingPageCta({ label = "Garantir Meu Acesso Gratuito" }: { label?: string }) {
   const [open, setOpen] = useState(false);
 
   return (
