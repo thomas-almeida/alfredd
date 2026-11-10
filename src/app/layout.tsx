@@ -3,6 +3,7 @@ import "./globals.css";
 import { SupportButton } from "@/components/layout/SupportButton";
 import { Clarity } from "@/components/analytics/Clarity";
 import { MetaPixel } from "@/components/analytics/MetaPixel";
+import { PwaInstallGuide } from "@/components/layout/PwaInstallGuide";
 
 const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://clipesalfredd.top";
 
@@ -43,6 +44,12 @@ export const metadata: Metadata = {
     shortcut: "/favicon.ico",
     apple: "/alfredd-icon.png",
   },
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "Alfredd",
+  },
 };
 
 export const viewport: Viewport = {
@@ -61,6 +68,7 @@ export default function RootLayout({
       <body>
         {children}
         <SupportButton />
+        <PwaInstallGuide />
         <Clarity />
         <MetaPixel />
       </body>
