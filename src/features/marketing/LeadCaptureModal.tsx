@@ -4,12 +4,14 @@ import { FormEvent, useState } from "react";
 import { createPortal } from "react-dom";
 import { getMetaAttribution } from "@/lib/meta/attribution";
 import { trackMetaEvent } from "@/lib/meta/pixel";
+import { formatWhatsapp, normalizeWhatsapp, validateLeadFields } from "@/lib/leads/validation";
 
 const GROUP_URL = "https://chat.whatsapp.com/Hl7m99pNIsXBNrAQuDYjrZ";
 
 export function LeadCaptureModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [phone, setPhone] = useState("");
 
   if (!open) return null;
 
@@ -20,15 +22,23 @@ export function LeadCaptureModal({ open, onClose }: { open: boolean; onClose: ()
 
     const data = new FormData(event.currentTarget);
     const name = String(data.get("name") ?? "").trim();
-    const phone = String(data.get("phone") ?? "").trim();
+    const rawPhone = String(data.get("phone") ?? "").trim();
     const email = String(data.get("email") ?? "").trim();
+    const website = String(data.get("website") ?? "").trim();
+    const validationError = validateLeadFields({ name, email, whatsapp: rawPhone });
+    if (validationError) {
+      setError(validationError);
+      setSending(false);
+      return;
+    }
+    const normalizedPhone = normalizeWhatsapp(rawPhone);
     const eventId = crypto.randomUUID();
     const attribution = getMetaAttribution();
     try {
       const response = await fetch("/api/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, whatsapp: phone, email, eventId, attribution }),
+        body: JSON.stringify({ name, whatsapp: normalizedPhone, email, website, eventId, attribution }),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null) as { error?: string } | null;
@@ -79,12 +89,17 @@ export function LeadCaptureModal({ open, onClose }: { open: boolean; onClose: ()
           </label>
           <label className="block text-sm font-medium">
             WhatsApp
-            <input required name="phone" type="tel" autoComplete="tel" className="lp-input mt-2" placeholder="(11) 99999-9999" />
+            <input required name="phone" type="tel" inputMode="numeric" autoComplete="tel" value={phone} onChange={(event) => setPhone(formatWhatsapp(event.target.value))} maxLength={15} pattern="\([0-9]{2}\) [0-9]{4,5}-[0-9]{4}" className="lp-input mt-2" placeholder="(11) 99999-9999" />
           </label>
           <label className="block text-sm font-medium">
             E-mail
-            <input required name="email" type="email" autoComplete="email" className="lp-input mt-2" placeholder="voce@email.com" />
+            <input required name="email" type="email" autoComplete="email" autoCapitalize="none" spellCheck={false} maxLength={254} className="lp-input mt-2" placeholder="voce@email.com" />
           </label>
+
+          <div className="absolute -left-[9999px] h-px w-px overflow-hidden" aria-hidden="true">
+            <label htmlFor="website">Website</label>
+            <input id="website" name="website" type="text" tabIndex={-1} autoComplete="off" />
+          </div>
 
           <button type="submit" disabled={sending} className="lp-button mt-2 w-full justify-center">
             {sending ? "Abrindo seu acesso…" : "Garantir acesso →"}
