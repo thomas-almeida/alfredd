@@ -30,6 +30,8 @@ const serverSchema = z.object({
   ABACATEPAY_DEV_KEY: z.string().min(1).optional(),
   ABACATEPAY_WEBHOOK: z.string().min(1).optional(),
   META_ACCESS_TOKEN: z.string().min(1).optional(),
+  META_ADS_ACCESS_TOKEN: z.string().min(1).optional(),
+  META_AD_ACCOUNT_ID: z.string().regex(/^act_\d+$/).optional(),
   META_GRAPH_API_VERSION: z.string().regex(/^v\d+\.\d+$/).optional(),
   // Engajamento do YouTube (Data API v3).
   YOUTUBE_API_KEY: z.string().min(1).optional(),

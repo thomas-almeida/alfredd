@@ -55,7 +55,14 @@ export type IconName =
   | "subtitles"
   | "menu"
   | "close"
-  | "download";
+  | "download"
+  | "users"
+  | "target"
+  | "leaf"
+  | "calendar"
+  | "filter"
+  | "copy"
+  | "chevron-down";
 
 export function Icon({
   name,
@@ -310,6 +317,55 @@ export function Icon({
       return (
         <svg {...p}>
           <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+        </svg>
+      );
+    case "users":
+      return (
+        <svg {...p}>
+          <circle cx="9" cy="8" r="3" />
+          <path d="M3.5 19c.5-3 2.2-4.5 5.5-4.5s5 1.5 5.5 4.5" />
+          <path d="M16 5.5a3 3 0 0 1 0 5.8M17 14.8c2 .6 3.2 2 3.5 4.2" />
+        </svg>
+      );
+    case "target":
+      return (
+        <svg {...p}>
+          <circle cx="12" cy="12" r="8.5" />
+          <circle cx="12" cy="12" r="4.5" />
+          <circle cx="12" cy="12" r="1" fill="currentColor" />
+        </svg>
+      );
+    case "leaf":
+      return (
+        <svg {...p}>
+          <path d="M20 4C11 4 5 7.5 5 14c0 3.5 2.5 6 6 6 6.5 0 9-7 9-16Z" />
+          <path d="M4 21c2.5-5 6.5-8.5 12-11" />
+        </svg>
+      );
+    case "calendar":
+      return (
+        <svg {...p}>
+          <rect x="3.5" y="5" width="17" height="15.5" rx="2" />
+          <path d="M7.5 3v4M16.5 3v4M3.5 9.5h17" />
+        </svg>
+      );
+    case "filter":
+      return (
+        <svg {...p}>
+          <path d="M4 6h16M7 12h10M10 18h4" />
+        </svg>
+      );
+    case "copy":
+      return (
+        <svg {...p}>
+          <rect x="8" y="8" width="11" height="11" rx="2" />
+          <path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2" />
+        </svg>
+      );
+    case "chevron-down":
+      return (
+        <svg {...p}>
+          <path d="m6 9 6 6 6-6" />
         </svg>
       );
     default:

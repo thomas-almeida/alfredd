@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
-export type BadgeTone = "neutral" | "accent" | "danger" | "warning" | "info";
+export type BadgeTone = "neutral" | "accent" | "danger" | "warning" | "info" | "pink";
 
 const tones: Record<BadgeTone, string> = {
   neutral: "text-muted border-border",
@@ -9,6 +9,7 @@ const tones: Record<BadgeTone, string> = {
   danger: "text-danger border-danger/35 bg-danger/10",
   warning: "text-warning border-warning/35 bg-warning/10",
   info: "text-info border-info/35 bg-info/10",
+  pink: "text-pink-400 border-pink-400/35 bg-pink-400/10",
 };
 
 /** Badge com quadradinho de status (ex.: "1 open case", "Normal / Unusual"). */
