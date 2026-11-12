@@ -2,6 +2,8 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
+  // Keep the development server isolated from production builds running locally.
+  distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next",
   images: {
     // Miniaturas de clipes/jogos vêm da CDN da Twitch; thumbs/avatares, do YouTube.
     remotePatterns: [
