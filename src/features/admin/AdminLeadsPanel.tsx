@@ -41,7 +41,6 @@ type Origin = { type: OriginType; channel: OriginChannel; label: string };
 type MetaInsightsData = {
   configured: boolean;
   spend: number;
-  impressions: number;
   lpClicks: number;
   clickSource: "landing_page_view" | "link_click" | "outbound_click" | null;
 };
@@ -266,7 +265,6 @@ export function AdminLeadsPanel({ leads }: { leads: AdminLead[] }) {
 
   const metaSpend = metaInsights?.configured ? metaInsights.spend : null;
   const metaClicks = metaInsights?.configured ? metaInsights.lpClicks : null;
-  const metaImpressions = metaInsights?.configured ? metaInsights.impressions : null;
   const cpc = metaSpend !== null && metaClicks ? metaSpend / metaClicks : null;
   const conversionRate = metaClicks ? (stats.paid / metaClicks) * 100 : null;
   const cpl = metaSpend !== null && stats.paid ? metaSpend / stats.paid : null;
@@ -289,7 +287,6 @@ export function AdminLeadsPanel({ leads }: { leads: AdminLead[] }) {
         <MetricCard icon="card" label="Valor gasto" value={formatCurrency(metaSpend)} detail={metaStatus} />
         <MetricCard icon="target" label="CPC (LP destino)" value={formatCurrency(cpc)} detail={metaSpend !== null && metaClicks ? `${formatCurrency(metaSpend)} / ${formatNumber(metaClicks)} cliques` : metaStatus} />
         <MetricCard icon="link" label="Cliques na LP" value={formatNumber(metaClicks)} detail={metaClicks !== null ? clickLabel : metaStatus} />
-        <MetricCard icon="eye" label="Impressões" value={formatNumber(metaImpressions)} detail={metaImpressions !== null ? "Meta Ads no período" : metaStatus} />
         <MetricCard icon="radar" label="Taxa de conversão" value={formatPercent(conversionRate)} detail={metaClicks ? `${stats.paid} leads Meta / ${formatNumber(metaClicks)} cliques` : metaStatus} />
         <MetricCard icon="users" label="CPL" value={formatCurrency(cpl)} detail={stats.paid && metaSpend !== null ? `${stats.paid} leads Meta` : metaStatus} />
       </section>

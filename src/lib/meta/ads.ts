@@ -10,7 +10,6 @@ type MetaAction = {
 type MetaInsightsResponse = {
   data?: Array<{
     spend?: string | number;
-    impressions?: string | number;
     actions?: MetaAction[];
   }>;
   error?: { message?: string };
@@ -30,7 +29,6 @@ type MetaAdResponse = {
 export type MetaInsights = {
   configured: boolean;
   spend: number;
-  impressions: number;
   lpClicks: number;
   clickSource: "landing_page_view" | "link_click" | "outbound_click" | null;
 };
@@ -101,23 +99,22 @@ function findAction(actions: MetaAction[] | undefined, actionTypes: string[]) {
 export async function getMetaInsights({ since, until }: { since: string; until: string }): Promise<MetaInsights> {
   const config = getMetaConfig();
   if (!config) {
-    return { configured: false, spend: 0, impressions: 0, lpClicks: 0, clickSource: null };
+    return { configured: false, spend: 0, lpClicks: 0, clickSource: null };
   }
 
   const timeRange = JSON.stringify({ since, until });
   const result = await fetchMeta<MetaInsightsResponse>(`${config.adAccountId}/insights`, {
-    fields: "spend,impressions,actions",
+    fields: "spend,actions",
     time_range: timeRange,
     level: "account",
   });
 
-  const totals = (result.data ?? []).reduce<{ spend: number; impressions: number; actions: MetaAction[] }>(
+  const totals = (result.data ?? []).reduce<{ spend: number; actions: MetaAction[] }>(
     (accumulator, row) => ({
       spend: accumulator.spend + numeric(row.spend),
-      impressions: accumulator.impressions + numeric(row.impressions),
       actions: [...accumulator.actions, ...(row.actions ?? [])],
     }),
-    { spend: 0, impressions: 0, actions: [] as MetaAction[] },
+    { spend: 0, actions: [] as MetaAction[] },
   );
 
   const landingPageViews = findAction(totals.actions, ["landing_page_view"]);
@@ -125,7 +122,6 @@ export async function getMetaInsights({ since, until }: { since: string; until: 
     return {
       configured: true,
       spend: totals.spend,
-      impressions: totals.impressions,
       lpClicks: landingPageViews,
       clickSource: "landing_page_view",
     };
@@ -136,7 +132,6 @@ export async function getMetaInsights({ since, until }: { since: string; until: 
     return {
       configured: true,
       spend: totals.spend,
-      impressions: totals.impressions,
       lpClicks: linkClicks,
       clickSource: "link_click",
     };
@@ -146,7 +141,6 @@ export async function getMetaInsights({ since, until }: { since: string; until: 
   return {
     configured: true,
     spend: totals.spend,
-    impressions: totals.impressions,
     lpClicks: outboundClicks,
     clickSource: outboundClicks > 0 ? "outbound_click" : null,
   };
