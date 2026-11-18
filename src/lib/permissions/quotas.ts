@@ -14,8 +14,8 @@ export type SubscriptionStatus =
 
 export const QUOTAS = {
   free: {
-    favoriteGames: Infinity,
-    favoriteStreamers: Infinity,
+    favoriteGames: 3,
+    favoriteStreamers: 3,
     savedClips: 5,
     activeMonitorings: 0,
     transcriptsPerDay: 3,
@@ -31,8 +31,26 @@ export const QUOTAS = {
   },
 } as const satisfies Record<Plan, Record<string, number>>;
 
-/** Preço proposto do PRO, administrável por configuração (centavos BRL). */
-export const PRO_PRICE_CENTS = 3790;
+const brl = (cents: number) => `R$ ${(cents / 100).toFixed(2).replace(".", ",")}`;
+
+/** Planos PRO (fonte única; UI e cobrança leem daqui). */
+export type ProPlanId = "monthly" | "lifetime";
+
+/** PRO mensal, recorrente (centavos BRL). */
+export const PRO_MONTHLY_CENTS = 997;
+/** PRO vitalício, pagamento único sem recorrência (centavos BRL). */
+export const PRO_LIFETIME_CENTS = 3790;
+
+export const PRO_MONTHLY_LABEL = brl(PRO_MONTHLY_CENTS); // "R$ 9,97"
+export const PRO_LIFETIME_LABEL = brl(PRO_LIFETIME_CENTS); // "R$ 37,90"
+
+/** Preço de entrada mostrado nos CTAs (o mais barato). */
+export const PRO_PRICE_LABEL = PRO_MONTHLY_LABEL;
+
+export const PRO_PLANS = {
+  monthly: { id: "monthly", cents: PRO_MONTHLY_CENTS, label: PRO_MONTHLY_LABEL, recurring: true },
+  lifetime: { id: "lifetime", cents: PRO_LIFETIME_CENTS, label: PRO_LIFETIME_LABEL, recurring: false },
+} as const satisfies Record<ProPlanId, { id: ProPlanId; cents: number; label: string; recurring: boolean }>;
 
 /** Planos com acesso PRO ativo exigem assinatura válida. */
 export function isProActive(

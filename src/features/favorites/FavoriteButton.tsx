@@ -12,6 +12,7 @@ import {
   type FavoriteTarget,
 } from "./actions";
 import { useAuthModal } from "@/features/auth/AuthModal";
+import { UpgradeModal } from "@/features/billing/UpgradeModal";
 
 type GameProps = {
   kind: "game";
@@ -48,6 +49,7 @@ export function FavoriteButton(
   const { openAuth } = useAuthModal();
   const [pending, start] = useTransition();
   const [msg, setMsg] = useState<string | null>(null);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
   // null enquanto o status inicial ainda não chegou.
   const [favorited, setFavorited] = useState<boolean | null>(null);
 
@@ -108,6 +110,8 @@ export function FavoriteButton(
           reason: "Entre para favoritar e acompanhar suas fontes.",
           onSuccess: () => run(),
         });
+      } else if (res.error === "quota_exceeded") {
+        setUpgradeOpen(true);
       } else if (res.ok) {
         setFavorited(true);
         setMsg(res.already ? "Já estava nos favoritos." : "Adicionado aos favoritos.");
@@ -130,6 +134,12 @@ export function FavoriteButton(
         {label}
       </Button>
       {msg && <span className="text-xs text-muted">{msg}</span>}
+      <UpgradeModal
+        open={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+        title="Limite de favoritos do Free"
+        description="O plano Free permite 3 jogos e 3 criadores favoritos. Assine o PRO para favoritar sem limites."
+      />
     </div>
   );
 }

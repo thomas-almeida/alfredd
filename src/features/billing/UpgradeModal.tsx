@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect } from "react";
 import { Icon } from "@/components/ui/Icon";
+import { PRO_PRICE_LABEL } from "@/lib/permissions/quotas";
 
 const perks = [
   "Edite e salve clipes ilimitados",
@@ -83,7 +84,7 @@ export function UpgradeModal({
           href="/assinatura"
           className="mt-6 flex w-full items-center justify-center rounded-md bg-accent px-4 py-2.5 text-[0.875rem] font-semibold text-accent-fg hover:brightness-110"
         >
-          Conhecer o PRO · R$ 37,90/mês
+          Conhecer o PRO · {PRO_PRICE_LABEL}/mês
         </Link>
         <button
           type="button"

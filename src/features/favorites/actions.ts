@@ -110,6 +110,29 @@ export async function favoriteYoutuber(input: {
   if (!session) return { ok: false, error: "unauthenticated" };
 
   const supabase = await createClient();
+
+  // Free: "criadores" = streamers Twitch + canais YouTube, teto combinado de 3.
+  // Só conta se ainda não for favorito (upsert é idempotente).
+  if (!session.isPro) {
+    const { data: existing } = await supabase
+      .from("youtube_favorites")
+      .select("id")
+      .eq("user_id", session.userId)
+      .eq("channel_id", input.channelId)
+      .maybeSingle();
+    if (!existing) {
+      const [streamers, youtubers] = await Promise.all([
+        supabase.from("favorites").select("id", { count: "exact", head: true })
+          .eq("user_id", session.userId).eq("source_type", "streamer"),
+        supabase.from("youtube_favorites").select("id", { count: "exact", head: true })
+          .eq("user_id", session.userId),
+      ]);
+      if ((streamers.count ?? 0) + (youtubers.count ?? 0) >= 3) {
+        return { ok: false, error: "quota_exceeded" };
+      }
+    }
+  }
+
   const { error } = await supabase.from("youtube_favorites").upsert(
     {
       user_id: session.userId,
