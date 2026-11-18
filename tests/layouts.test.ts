@@ -31,6 +31,10 @@ import {
   type Keyframe,
   panesForPreset,
   compositionAt,
+  paneImageSources,
+  drawImageCover,
+  type FocusPane,
+  type CompositionSegment,
 } from "../src/lib/export/layouts.ts";
 
 test("presets de composição dividem o mesmo frame em focos independentes", () => {
@@ -49,6 +53,101 @@ test("compositionAt prioriza composição salva e mantém todos os focos", () =>
   const composition = panesForPreset("split_horizontal");
   const state = { ...defaultState(60), composition };
   assert.deepEqual(compositionAt(state, 10), composition);
+});
+
+// ---------- Fase 1B: layouts por faixa de tempo ----------
+
+const layoutSeg = (id: string, start: number, end: number, preset: Parameters<typeof panesForPreset>[0]): CompositionSegment =>
+  ({ id, start, end, panes: panesForPreset(preset) });
+
+test("1B: compositionAt usa o segmento de layout que cobre o instante", () => {
+  const grid = layoutSeg("a", 0, 30, "grid_2x2");
+  const cols = layoutSeg("b", 30, 60, "split_vertical");
+  const state = { ...defaultState(60), compositionSegments: [grid, cols] };
+  assert.equal(compositionAt(state, 10).length, 4, "nos 1os 30s deve ser a grade (4 focos)");
+  assert.equal(compositionAt(state, 45).length, 2, "depois dos 30s deve ser 2 colunas");
+});
+
+test("1B: compositionAt respeita início inclusivo e fim exclusivo do segmento", () => {
+  const cols = layoutSeg("b", 30, 60, "split_vertical");
+  const state = { ...defaultState(60), compositionSegments: [cols] };
+  assert.equal(compositionAt(state, 30).length, 2, "exatamente no início entra no segmento");
+  // Em t=60 (fim exclusivo) não há segmento → cai no enquadramento (tela cheia = 1 foco)
+  assert.equal(compositionAt(state, 60).length, 1, "no fim exclusivo sai do segmento");
+});
+
+test("1B: fora de qualquer segmento cai na composição global", () => {
+  const seg = layoutSeg("a", 0, 10, "grid_2x2");
+  const composition = panesForPreset("split_vertical");
+  const state = { ...defaultState(60), compositionSegments: [seg], composition };
+  assert.deepEqual(compositionAt(state, 40), composition, "no buraco usa a composição global");
+  assert.equal(compositionAt(state, 5).length, 4, "dentro do segmento usa o segmento");
+});
+
+test("1B: fora de segmento e sem global cai no enquadramento (tela cheia)", () => {
+  const seg = layoutSeg("a", 0, 10, "grid_2x2");
+  const state = { ...defaultState(60), compositionSegments: [seg] };
+  const out = compositionAt(state, 40);
+  assert.equal(out.length, 1, "sem global e fora do segmento → tela cheia");
+  assert.deepEqual(out[0]!.destination, { x: 0, y: 0, w: 1, h: 1 });
+});
+
+test("1B regressão: segmento com panes vazio não gera frame preto (cai no padrão)", () => {
+  const empty: CompositionSegment = { id: "x", start: 0, end: 10, panes: [] };
+  const composition = panesForPreset("split_vertical");
+  const state = { ...defaultState(60), compositionSegments: [empty], composition };
+  assert.deepEqual(compositionAt(state, 5), composition, "panes vazio deve cair na global, não retornar []");
+});
+
+// ---------- Fase 1C: imagem como fonte de um quadro ----------
+
+const imagePane = (id: string, src: string): FocusPane =>
+  ({ id, crop: { x: 0, y: 0, w: 1, h: 1 }, destination: { x: 0, y: 0, w: 1, h: 1 }, zIndex: 0, source: { kind: "image", src } });
+
+test("1C: paneImageSources coleta de composition e segmentos, sem duplicar e ignorando clip/vídeo", () => {
+  const clipPane = panesForPreset("full")[0]!; // sem source → recorte do vídeo
+  const videoPane: FocusPane = { ...clipPane, id: "v", source: { kind: "video", src: "blob:xyz" } };
+  const state = {
+    ...defaultState(60),
+    composition: [imagePane("a", "data:img1"), clipPane, videoPane],
+    compositionSegments: [
+      { id: "s1", start: 0, end: 10, panes: [imagePane("b", "data:img2")] },
+      { id: "s2", start: 10, end: 20, panes: [imagePane("c", "data:img1")] }, // repetida
+    ],
+  };
+  assert.deepEqual(paneImageSources(state).sort(), ["data:img1", "data:img2"]);
+});
+
+test("1C: paneImageSources vazio quando não há imagens", () => {
+  assert.deepEqual(paneImageSources({ ...defaultState(60), composition: panesForPreset("grid_2x2") }), []);
+});
+
+test("1C: drawImageCover preenche o destino cortando o excesso (cover)", () => {
+  const calls: number[][] = [];
+  const ctx = { drawImage: (_img: unknown, ...rest: number[]) => calls.push(rest) } as unknown as CanvasRenderingContext2D;
+  // Imagem larga (200x100, aspecto 2) num destino quadrado (100x100): corta a largura.
+  drawImageCover(ctx, {} as CanvasImageSource, 200, 100, 0, 0, 100, 100);
+  const [sx, sy, sw, sh, dx, dy, dw, dh] = calls[0]!;
+  assert.equal(sh, 100, "altura da fonte inteira");
+  assert.equal(sw, 100, "largura recortada p/ casar o aspecto do destino");
+  assert.equal(sx, 50, "recorte centralizado na horizontal");
+  assert.equal(sy, 0);
+  assert.deepEqual([dx, dy, dw, dh], [0, 0, 100, 100]);
+
+  // Imagem alta (100x200, aspecto 0.5) num destino quadrado: corta a altura.
+  calls.length = 0;
+  drawImageCover(ctx, {} as CanvasImageSource, 100, 200, 0, 0, 100, 100);
+  const tall = calls[0]!;
+  assert.equal(tall[2], 100, "largura inteira");
+  assert.equal(tall[3], 100, "altura recortada");
+  assert.equal(tall[1], 50, "recorte centralizado na vertical");
+});
+
+test("1C: drawImageCover ignora imagem sem dimensões", () => {
+  const calls: unknown[] = [];
+  const ctx = { drawImage: (...a: unknown[]) => calls.push(a) } as unknown as CanvasRenderingContext2D;
+  drawImageCover(ctx, {} as CanvasImageSource, 0, 0, 0, 0, 100, 100);
+  assert.equal(calls.length, 0, "sem iw/ih não desenha");
 });
 
 test("defaultState inicia legendas em posição inferior central", () => {
