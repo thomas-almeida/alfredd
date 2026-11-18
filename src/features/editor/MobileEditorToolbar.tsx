@@ -11,7 +11,7 @@ const TOOL_LABELS: Record<MobileEditorTool, string> = {
   speed: "Veloc.",
 };
 
-const TOOL_ICONS = {
+export const TOOL_ICONS = {
   trim: "scissors",
   audio: "music",
   text: "subtitles",
@@ -19,6 +19,15 @@ const TOOL_ICONS = {
   brand: "bookmark",
   speed: "clock",
 } as const;
+
+export const TOOL_FULL_LABELS: Record<MobileEditorTool, string> = {
+  trim: "Cortar",
+  audio: "Áudio",
+  text: "Texto",
+  effects: "Efeitos",
+  brand: "Marca",
+  speed: "Velocidade",
+};
 
 export function MobileEditorToolbar({
   activeTool,
@@ -29,9 +38,11 @@ export function MobileEditorToolbar({
   onChange: (tool: MobileEditorTool) => void;
   hasTextTool: boolean;
 }) {
+  // "effects" está oculto (ainda não funciona) e "speed" vive na toolbar da
+  // timeline, então nenhum dos dois aparece como ferramenta aqui.
   const tools: MobileEditorTool[] = hasTextTool
-    ? ["trim", "audio", "text", "effects", "brand"]
-    : ["trim", "audio", "effects", "brand", "speed"];
+    ? ["trim", "audio", "text", "brand"]
+    : ["trim", "audio", "brand"];
 
   return (
     <nav className="mobile-editor-toolbar fixed inset-x-0 bottom-0 z-50 hidden max-[700px]:grid grid-cols-5 border-t border-white/10 bg-[#111216]/96 pb-[env(safe-area-inset-bottom)] text-white backdrop-blur-xl" aria-label="Ferramentas do editor">

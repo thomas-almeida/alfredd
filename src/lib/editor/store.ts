@@ -27,6 +27,9 @@ import {
   type FocusPane,
   type FocusPreset,
   type ImageOverlay,
+  type TextOverlay,
+  type CompositionSegment,
+  type PaneSource,
 } from "@/lib/export/layouts";
 import { MOTION_PRESETS, applyMotionPreset, peakKeyframes, type MotionPreset } from "@/lib/editor/motion";
 
@@ -90,15 +93,30 @@ interface EditorStore extends EditorState {
   redo: () => void;
   snapshot: () => EditorState;
   composition?: FocusPane[];
+  compositionSegments?: CompositionSegment[];
+  /** Índice do segmento de layout selecionado na timeline (-1 = nenhum). */
+  selectedLayout: number;
   activePaneId: string;
   setComposition: (preset: FocusPreset, srcW?: number, srcH?: number) => void;
   setActivePane: (id: string) => void;
   setPaneCrop: (id: string, rect: NRect) => void;
+  setPaneDestination: (id: string, rect: NRect) => void;
+  /** Define a fonte de um quadro: recorte do vídeo (undefined/clip), imagem ou vídeo. */
+  setPaneSource: (id: string, source: PaneSource | undefined) => void;
+  /** Cria um segmento de layout no tempo atual (Fase 1B). */
+  addCompositionLayout: (preset: FocusPreset, srcW?: number, srcH?: number) => void;
+  removeCompositionLayout: (index: number) => void;
+  setCompositionLayoutEdge: (index: number, which: "start" | "end", value: number) => void;
+  selectLayout: (index: number) => void;
   setCaptionPosition: (position: CaptionPosition) => void;
   addImageOverlay: (src: string, width: number, height: number) => void;
   updateImageOverlay: (id: string, patch: Partial<Omit<ImageOverlay, "id" | "src">>) => void;
   removeImageOverlay: (id: string) => void;
   setImageOverlayEdge: (id: string, which: "start" | "end", value: number) => void;
+  addTextOverlay: () => void;
+  updateTextOverlay: (id: string, patch: Partial<Omit<TextOverlay, "id">>) => void;
+  removeTextOverlay: (id: string) => void;
+  setTextOverlayEdge: (id: string, which: "start" | "end", value: number) => void;
 }
 
 let lastCommit = 0;
@@ -144,7 +162,10 @@ export const useEditor = create<EditorStore>((set, get) => {
     keyframes: [],
     activeTrack: 0,
     composition: undefined,
+    compositionSegments: undefined,
+    selectedLayout: -1,
     imageOverlays: [],
+    textOverlays: [],
     activePaneId: "pane-1",
     duration: 0,
     currentTime: 0,
@@ -168,8 +189,11 @@ export const useEditor = create<EditorStore>((set, get) => {
         crops: fitCrops({ ...base.crops, ...saved?.crops }, layout),
         keyframes: fitKeyframes(saved?.keyframes, layout),
         composition: saved?.composition?.length ? saved.composition : undefined,
+        compositionSegments: saved?.compositionSegments?.length ? saved.compositionSegments : undefined,
+        selectedLayout: -1,
         captionPosition: saved?.captionPosition ?? base.captionPosition,
         imageOverlays: saved?.imageOverlays ?? [],
+        textOverlays: saved?.textOverlays ?? [],
         activePaneId: saved?.composition?.[0]?.id ?? "pane-1",
         tracks: savedTracks.map((tr) => ({
           ...tr,
@@ -289,12 +313,65 @@ export const useEditor = create<EditorStore>((set, get) => {
       patchFraming((f) => ({ layout, crops: fitCrops(f.crops, layout), keyframes: fitKeyframes(f.keyframes, layout) })),
     setCamPos: (camPos) => patchFraming(() => ({ camPos })),
     setComposition: (preset, srcW = 1920, srcH = 1080) => {
+      // Se o playhead está dentro de um segmento de layout, edita esse segmento.
+      const segs = get().compositionSegments;
+      const t = get().currentTime;
+      const si = segs?.findIndex((s) => t >= s.start && t < s.end) ?? -1;
+      if (si >= 0 && segs) {
+        const panes = panesForPreset(preset, srcW, srcH);
+        lastCommit = 0;
+        commit({ compositionSegments: segs.map((s, i) => i === si ? { ...s, panes } : s) });
+        set({ activePaneId: panes[0]?.id ?? "pane-1" });
+        return;
+      }
       lastCommit = 0;
       commit({ composition: preset === "full" ? undefined : panesForPreset(preset, srcW, srcH), layout: "full", tracks: [] });
       set({ activeTrack: 0, activePaneId: "pane-1" });
     },
+    addCompositionLayout: (preset, srcW = 1920, srcH = 1080) => {
+      const segs = get().compositionSegments ?? [];
+      const t = get().currentTime;
+      const duration = get().duration;
+      if (segs.some((s) => t >= s.start && t < s.end)) return; // já há layout aqui
+      const nextStart = segs.filter((s) => s.start > t).reduce((m, s) => Math.min(m, s.start), duration);
+      const end = Math.min(duration, Math.max(t + MIN_SEGMENT, Math.min(nextStart, t + 5)));
+      if (end - t < MIN_SEGMENT) return;
+      const panes = panesForPreset(preset, srcW, srcH);
+      const next = [...segs, { id: `lay-${++overlaySeq}`, start: t, end, panes }].sort((a, b) => a.start - b.start);
+      lastCommit = 0;
+      commit({ compositionSegments: next });
+      set({ selectedLayout: next.findIndex((s) => s.start === t), activePaneId: panes[0]?.id ?? "pane-1" });
+    },
+    removeCompositionLayout: (index) => {
+      const segs = get().compositionSegments;
+      if (!segs?.[index]) return;
+      const next = segs.filter((_, i) => i !== index);
+      commit({ compositionSegments: next.length ? next : undefined });
+      set({ selectedLayout: -1 });
+    },
+    setCompositionLayoutEdge: (index, which, value) => {
+      const segs = get().compositionSegments;
+      const seg = segs?.[index];
+      if (!segs || !seg) return;
+      const duration = get().duration;
+      const prevEnd = index > 0 ? segs[index - 1]!.end : 0;
+      const nextStart = index < segs.length - 1 ? segs[index + 1]!.start : duration;
+      const start = which === "start" ? Math.max(prevEnd, Math.min(value, seg.end - MIN_SEGMENT)) : seg.start;
+      const end = which === "end" ? Math.min(nextStart, Math.max(value, seg.start + MIN_SEGMENT)) : seg.end;
+      commit({ compositionSegments: segs.map((s, i) => i === index ? { ...s, start, end } : s) });
+    },
+    selectLayout: (index) => set({ selectedLayout: index }),
     setActivePane: (id) => set({ activePaneId: id }),
     setPaneCrop: (id, rect) => {
+      const segs = get().compositionSegments;
+      const t = get().currentTime;
+      const si = segs?.findIndex((s) => t >= s.start && t < s.end) ?? -1;
+      if (si >= 0 && segs) {
+        commit({ compositionSegments: segs.map((s, i) => i === si
+          ? { ...s, panes: s.panes.map((p) => p.id === id ? { ...p, crop: clampRect(rect) } : p) }
+          : s) });
+        return;
+      }
       if (!get().composition?.length && (id === "game" || id === "cam")) {
         get().setCrop(id, rect);
         return;
@@ -302,6 +379,34 @@ export const useEditor = create<EditorStore>((set, get) => {
       const panes = get().composition ?? panesForPreset("full");
       if (!panes.some((p) => p.id === id)) return;
       commit({ composition: panes.map((p) => p.id === id ? { ...p, crop: clampRect(rect) } : p) });
+    },
+    setPaneDestination: (id, rect) => {
+      const segs = get().compositionSegments;
+      const t = get().currentTime;
+      const si = segs?.findIndex((s) => t >= s.start && t < s.end) ?? -1;
+      if (si >= 0 && segs) {
+        commit({ compositionSegments: segs.map((s, i) => i === si
+          ? { ...s, panes: s.panes.map((p) => p.id === id ? { ...p, destination: clampRect(rect) } : p) }
+          : s) });
+        return;
+      }
+      const panes = get().composition;
+      if (!panes?.length || !panes.some((p) => p.id === id)) return;
+      commit({ composition: panes.map((p) => p.id === id ? { ...p, destination: clampRect(rect) } : p) });
+    },
+    setPaneSource: (id, source) => {
+      const apply = (p: FocusPane): FocusPane =>
+        p.id === id ? { ...p, source: source && source.kind !== "clip" ? source : undefined } : p;
+      const segs = get().compositionSegments;
+      const t = get().currentTime;
+      const si = segs?.findIndex((s) => t >= s.start && t < s.end) ?? -1;
+      if (si >= 0 && segs) {
+        commit({ compositionSegments: segs.map((s, i) => i === si ? { ...s, panes: s.panes.map(apply) } : s) });
+        return;
+      }
+      const panes = get().composition;
+      if (!panes?.length || !panes.some((p) => p.id === id)) return;
+      commit({ composition: panes.map(apply) });
     },
     setCaptionPosition: (position) => commit({ captionPosition: {
       x: Math.min(1, Math.max(0, position.x)),
@@ -347,6 +452,47 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (!item) return;
       if (which === "start") get().updateImageOverlay(id, { start: value });
       else get().updateImageOverlay(id, { end: value });
+    },
+    addTextOverlay: () => {
+      const duration = get().duration;
+      const start = get().currentTime;
+      const end = Math.min(duration, Math.max(start + MIN_SEGMENT, start + 3));
+      const overlay: TextOverlay = {
+        id: `txt-${++overlaySeq}`,
+        text: "Novo texto",
+        start,
+        end,
+        x: 0.5,
+        y: 0.5,
+        size: 0.06,
+        width: 0.8,
+        color: "#ffffff",
+        font: "sans",
+        bg: "box",
+        bgColor: "#000000",
+        bgOpacity: 0.55,
+      };
+      commit({ textOverlays: [...(get().textOverlays ?? []), overlay] });
+    },
+    updateTextOverlay: (id, patch) => commit({
+      textOverlays: (get().textOverlays ?? []).map((item) => item.id === id ? {
+        ...item,
+        ...patch,
+        x: patch.x == null ? item.x : Math.min(1, Math.max(0, patch.x)),
+        y: patch.y == null ? item.y : Math.min(1, Math.max(0, patch.y)),
+        size: patch.size == null ? item.size : Math.min(0.4, Math.max(0.015, patch.size)),
+        width: patch.width == null ? item.width : Math.min(1, Math.max(0.05, patch.width)),
+        bgOpacity: patch.bgOpacity == null ? item.bgOpacity : Math.min(1, Math.max(0, patch.bgOpacity)),
+        start: patch.start == null ? item.start : Math.max(0, Math.min(item.end - MIN_SEGMENT, patch.start)),
+        end: patch.end == null ? item.end : Math.min(get().duration, Math.max(item.start + MIN_SEGMENT, patch.end)),
+      } : item),
+    }),
+    removeTextOverlay: (id) => commit({ textOverlays: (get().textOverlays ?? []).filter((item) => item.id !== id) }),
+    setTextOverlayEdge: (id, which, value) => {
+      const item = (get().textOverlays ?? []).find((x) => x.id === id);
+      if (!item) return;
+      if (which === "start") get().updateTextOverlay(id, { start: value });
+      else get().updateTextOverlay(id, { end: value });
     },
     setCrop: (key, rect) =>
       patchFraming((f) => {
@@ -411,10 +557,12 @@ export const useEditor = create<EditorStore>((set, get) => {
         keyframes: [],
         tracks: [],
         composition: undefined,
+        compositionSegments: undefined,
         captionPosition: base.captionPosition,
         imageOverlays: [],
+        textOverlays: [],
       });
-      set({ activeTrack: 0, activePaneId: "pane-1", currentTime: segments[0]!.start });
+      set({ activeTrack: 0, activePaneId: "pane-1", selectedLayout: -1, currentTime: segments[0]!.start });
     },
     setTime: (currentTime) => set({ currentTime }),
     setPlaying: (playing) => set({ playing }),
@@ -433,8 +581,8 @@ export const useEditor = create<EditorStore>((set, get) => {
       set({ ...next, past: [...past, snapshot()], future: future.slice(1) });
     },
     snapshot: () => {
-      const { segments, layout, camPos, crops, audio, tracks, keyframes, composition, captionPosition, imageOverlays } = get();
-      return { segments, layout, camPos, crops, keyframes: keyframes ?? [], audio: audio ?? null, tracks: tracks ?? [], composition: composition ?? [], captionPosition: captionPosition ?? { x: 0.5, y: 0.88 }, imageOverlays: imageOverlays ?? [] };
+      const { segments, layout, camPos, crops, audio, tracks, keyframes, composition, compositionSegments, captionPosition, imageOverlays, textOverlays } = get();
+      return { segments, layout, camPos, crops, keyframes: keyframes ?? [], audio: audio ?? null, tracks: tracks ?? [], composition: composition ?? [], compositionSegments: compositionSegments ?? [], captionPosition: captionPosition ?? { x: 0.5, y: 0.88 }, imageOverlays: imageOverlays ?? [], textOverlays: textOverlays ?? [] };
     },
   };
 });

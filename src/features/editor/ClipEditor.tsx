@@ -22,7 +22,15 @@ import {
   slotsFor,
   compositionAt,
   overlaysAt,
+  textOverlaysAt,
+  drawTextOverlay,
+  textOverlayBox,
+  paneImageSources,
+  drawImageCover,
   type ImageOverlay,
+  type TextOverlay,
+  type TextFont,
+  type TextBg,
   type EditorState,
   type Framing,
   type Layout,
@@ -297,6 +305,18 @@ function EditorBody({
   const [transcriptOpen, setTranscriptOpen] = useState(showTranscript);
   const [mobilePreview, setMobilePreview] = useState<"final" | "raw">("final");
   const [mobileTool, setMobileTool] = useState<MobileEditorTool>("trim");
+  // Aba contextual do desktop, ancorada acima da timeline. null = nenhuma aberta.
+  const [activeTab, setActiveTab] = useState<"enquadramento" | "imagem" | "texto" | null>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  // "Pular pra timeline": leva o foco pra onde a edição acontece depois de
+  // escolher um formato/opção na aba contextual.
+  const focusTimeline = useCallback(() => {
+    timelineRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }, []);
+  // Visibilidade de um painel do inspetor MOBILE (no desktop a coluna é oculta e
+  // os mesmos controles vivem nas abas contextuais acima da timeline).
+  const toolPanel = (tool: MobileEditorTool, extra = "") =>
+    `${mobileTool === tool ? "block" : "hidden"}${extra ? ` ${extra}` : ""}`;
   const canUndo = useEditor((s) => s.past.length > 0);
   const canRedo = useEditor((s) => s.future.length > 0);
   useEffect(() => {
@@ -570,7 +590,7 @@ function EditorBody({
       <div className={`editor-layout grid gap-5 items-start max-[700px]:grid-cols-1 ${transcriptOpen
         ? "grid-cols-[minmax(250px,300px)_minmax(0,1fr)_minmax(250px,300px)] max-[1200px]:grid-cols-[280px_minmax(0,1fr)]"
         : "grid-cols-[minmax(0,1fr)_minmax(250px,300px)] max-[1200px]:grid-cols-1"}`}>
-        {showTranscript && transcriptOpen && <aside id="editor-transcript-sidebar" className="editor-transcript-sidebar sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto max-[700px]:order-10 max-[700px]:static max-[700px]:max-h-none">
+        {showTranscript && transcriptOpen && <aside id="editor-transcript-sidebar" className="editor-transcript-sidebar sticky top-[72px] self-start max-h-[calc(100vh-88px)] overflow-y-auto max-[700px]:order-10 max-[700px]:static max-[700px]:max-h-none">
           <div className="mb-2 flex justify-end">
             <button
               type="button"
@@ -625,20 +645,70 @@ function EditorBody({
               <VideoLoadingOverlay state={videoState} progressUrl={ingest.progressUrl} durationMs={ingest.duration * 1000} />
             </div>
           </div>
-          <Timeline
-            className="editor-mobile-timeline max-[700px]:order-2"
-            duration={ingest.duration}
-            sourceUrl={ingest.sourceUrl}
-            selected={selected}
-            onSelect={setSelected}
-            onSeek={seek}
-            playing={playing}
-            onTogglePlay={togglePlay}
-            loop={loop}
-            onToggleLoop={() => setLoop((l) => !l)}
-            rate={rate}
-            onRate={setRate}
-          />
+          {/* Abas contextuais (desktop): ícones para abrir opções logo acima da
+              timeline; escolher uma opção foca a timeline para editar. */}
+          <div className="editor-context-bar max-[700px]:hidden flex flex-col gap-2">
+            <div className="flex items-center gap-1 rounded-md border border-border bg-surface p-1">
+              <ContextTabBtn icon="grid" label="Enquadramento" active={activeTab === "enquadramento"} onClick={() => setActiveTab((t) => (t === "enquadramento" ? null : "enquadramento"))} />
+              <ContextTabBtn icon="bookmark" label="Imagem / Marca" active={activeTab === "imagem"} onClick={() => setActiveTab((t) => (t === "imagem" ? null : "imagem"))} />
+              <ContextTabBtn icon="subtitles" label="Texto" active={activeTab === "texto"} onClick={() => setActiveTab((t) => (t === "texto" ? null : "texto"))} />
+            </div>
+            {activeTab && (
+              <div className="rounded-md border border-border bg-surface p-3">
+                <div className="mb-3 flex items-center justify-between">
+                  <span className="text-sm font-semibold text-fg">
+                    {activeTab === "enquadramento" ? "Enquadramento e focos" : activeTab === "imagem" ? "Imagem / marca d’água" : "Texto e legendas"}
+                  </span>
+                  <button type="button" onClick={() => setActiveTab(null)} aria-label="Fechar painel" className="text-muted hover:text-fg">
+                    <Icon name="close" width={16} height={16} />
+                  </button>
+                </div>
+                {activeTab === "enquadramento" && (
+                  <div className="flex flex-col gap-3">
+                    <FocusLayoutPicker srcW={src.w} srcH={src.h} onPicked={focusTimeline} />
+                    <PaneSourceControls />
+                    <KeyframeControls />
+                  </div>
+                )}
+                {activeTab === "imagem" && <ImageOverlayControls />}
+                {activeTab === "texto" && (
+                  <div className="flex flex-col gap-3">
+                    <TextOverlayControls />
+                    {showTranscript && (
+                      <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface-2 p-2.5">
+                        <p className="text-xs text-muted">Legendas da transcrição no vídeo final.</p>
+                        <button
+                          type="button"
+                          onClick={() => setCaptionsEnabled((v) => !v)}
+                          disabled={!transcript}
+                          aria-pressed={captionsEnabled}
+                          className={`shrink-0 rounded-md px-3 py-2 text-xs font-semibold ${captionsEnabled ? "bg-accent text-accent-fg" : "bg-surface text-muted"}`}
+                        >
+                          {captionsEnabled ? "Ativadas" : "Ativar"}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <div ref={timelineRef} className="max-[700px]:contents">
+            <Timeline
+              className="editor-mobile-timeline max-[700px]:order-2"
+              duration={ingest.duration}
+              sourceUrl={ingest.sourceUrl}
+              selected={selected}
+              onSelect={setSelected}
+              onSeek={seek}
+              playing={playing}
+              onTogglePlay={togglePlay}
+              loop={loop}
+              onToggleLoop={() => setLoop((l) => !l)}
+              rate={rate}
+              onRate={setRate}
+            />
+          </div>
           <div className={`editor-audio-controls flex items-center gap-2 flex-wrap text-[13px] text-muted max-[700px]:order-3 ${mobileTool === "audio" ? "" : "max-[700px]:hidden"}`}>
             <div className="flex items-center gap-1.5">
               <button
@@ -680,58 +750,49 @@ function EditorBody({
           </div>
         </div>
 
-        <div className={`editor-final-column flex flex-col gap-4 sticky top-4 self-start max-h-[calc(100vh-2rem)] overflow-y-auto ${transcriptOpen ? "max-[1200px]:col-span-2" : "max-[1200px]:col-span-1"} max-[700px]:contents`}>
+        <div className={`editor-final-column flex flex-col gap-4 sticky top-[72px] self-start max-h-[calc(100vh-88px)] overflow-y-auto ${transcriptOpen ? "max-[1200px]:col-span-2" : "max-[1200px]:col-span-1"} max-[700px]:contents`}>
           <div className={`editor-mobile-preview editor-final-preview max-[700px]:order-1 ${mobilePreview === "final" ? "" : "max-[700px]:hidden"}`}>
-            <VerticalPreview videoRef={videoRef} srcW={src.w} srcH={src.h} transcript={editorTranscript} captionsEnabled={captionsEnabled} />
+            <VerticalPreview videoRef={videoRef} srcW={src.w} srcH={src.h} transcript={editorTranscript} captionsEnabled={captionsEnabled} editFrame={activeTab === "enquadramento"} />
           </div>
-          <div className="editor-controls-column flex flex-col gap-4 max-[700px]:contents">
-            <MobileEditorToolbar activeTool={mobileTool} onChange={setMobileTool} hasTextTool={showTranscript} />
+          {/* Controles mobile: barra inferior + painéis por ferramenta. No desktop
+              toda esta coluna some — os mesmos controles vivem nas abas contextuais
+              acima da timeline. "effects" e "speed" não entram (ver mockup). */}
+          <div className="editor-controls-column hidden max-[700px]:contents">
+            <MobileEditorToolbar activeTool={mobileTool} onChange={setMobileTool} hasTextTool />
             <div className="editor-control-sections flex flex-col gap-4 max-[700px]:order-5">
-              <div className={mobileTool === "trim" ? "" : "max-[700px]:hidden"}>
+              <div className={toolPanel("trim")}>
                 <FocusLayoutPicker srcW={src.w} srcH={src.h} />
+                <PaneSourceControls />
                 <KeyframeControls />
               </div>
-              <div className={mobileTool === "text" ? "rounded-md border border-border bg-surface p-3 max-[700px]:block" : "max-[700px]:hidden"}>
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-medium text-fg">Texto e legendas</p>
-                    <p className="mt-1 text-xs text-muted">Ative as legendas da transcrição no vídeo final.</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setCaptionsEnabled((v) => !v)}
-                    disabled={!transcript}
-                    aria-pressed={captionsEnabled}
-                    className={`rounded-md px-3 py-2 text-xs font-semibold ${captionsEnabled ? "bg-accent text-accent-fg" : "bg-surface-2 text-muted"}`}
-                  >
-                    {captionsEnabled ? "Ativadas" : "Ativar"}
-                  </button>
+              <div className={toolPanel("text")}>
+                <div className="flex flex-col gap-3">
+                  <TextOverlayControls />
+                  {showTranscript && (
+                    <div className="flex items-center justify-between gap-3 rounded-md border border-border bg-surface p-3">
+                      <div>
+                        <p className="text-sm font-medium text-fg">Legendas</p>
+                        <p className="mt-1 text-xs text-muted">Transcrição no vídeo final.</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setCaptionsEnabled((v) => !v)}
+                        disabled={!transcript}
+                        aria-pressed={captionsEnabled}
+                        className={`rounded-md px-3 py-2 text-xs font-semibold ${captionsEnabled ? "bg-accent text-accent-fg" : "bg-surface-2 text-muted"}`}
+                      >
+                        {captionsEnabled ? "Ativadas" : "Ativar"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className={mobileTool === "effects" ? "" : "max-[700px]:hidden"}>
-                <MotionControls videoRef={videoRef} sourceUrl={ingest.sourceUrl} srcW={src.w} srcH={src.h} />
-              </div>
-              <div className={mobileTool === "brand" ? "" : "max-[700px]:hidden"}>
+              <div className={toolPanel("brand")}>
                 <ImageOverlayControls />
               </div>
-              <div className={mobileTool === "speed" ? "rounded-md border border-border bg-surface p-3 max-[700px]:block" : "max-[700px]:hidden"}>
-                <p className="text-sm font-medium text-fg">Velocidade</p>
-                <div className="mt-3 grid grid-cols-4 gap-2">
-                  {[0.5, 1, 1.5, 2].map((value) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setRate(value)}
-                      className={`rounded-md border px-2 py-2 text-xs ${rate === value ? "border-accent bg-accent/15 text-accent" : "border-border text-muted"}`}
-                    >
-                      {value.toLocaleString("pt-BR")}×
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <LeaveGuard active={!exported} />
             </div>
           </div>
+          <LeaveGuard active={!exported} />
         </div>
       </div>
     </div>
@@ -740,11 +801,12 @@ function EditorBody({
 
 function FocusOverlay({ srcW, srcH }: { srcW: number; srcH: number }) {
   const state = useEditor();
-  const panes = state.composition ?? compositionAt(state, state.currentTime);
+  // Segment-aware: mostra/edita os focos vigentes no instante atual.
+  const panes = compositionAt(state, state.currentTime);
   const { activePaneId, setActivePane, setPaneCrop } = state;
   const boxRef = useRef<HTMLDivElement>(null);
 
-  function drag(e: React.PointerEvent, paneId: string, mode: "move" | "resize") {
+  function drag(e: React.PointerEvent, paneId: string, mode: "move" | "resize" | "resize-x" | "resize-y") {
     e.preventDefault();
     e.stopPropagation();
     const box = boxRef.current?.getBoundingClientRect();
@@ -758,8 +820,11 @@ function FocusOverlay({ srcW, srcH }: { srcW: number; srcH: number }) {
       if (mode === "move") {
         setPaneCrop(paneId, { ...start.r, x: start.r.x + dx, y: start.r.y + dy });
       } else {
-        const r: NRect = { ...start.r, w: Math.max(0.05, start.r.w + dx) };
-        setPaneCrop(paneId, lockAspect(r, srcW, srcH, pane.destination.w * OUT_W, pane.destination.h * OUT_H));
+        // Largura e altura livres (pode esticar o vídeo): sem lockAspect.
+        const r: NRect = { ...start.r };
+        if (mode !== "resize-y") r.w = Math.max(0.05, start.r.w + dx);
+        if (mode !== "resize-x") r.h = Math.max(0.05, start.r.h + dy);
+        setPaneCrop(paneId, r);
       }
     };
     const onUp = () => {
@@ -781,6 +846,8 @@ function FocusOverlay({ srcW, srcH }: { srcW: number; srcH: number }) {
   return (
     <div ref={boxRef} className="absolute inset-0 pointer-events-none">
       {panes.map((pane, index) => {
+        // Quadros de imagem/vídeo não são recorte do vídeo: sem caixa de crop aqui.
+        if (pane.source && pane.source.kind !== "clip") return null;
         const r = pane.crop;
         const isActive = pane.id === activePaneId;
         const color = FOCUS_COLORS[index % FOCUS_COLORS.length]!;
@@ -793,7 +860,9 @@ function FocusOverlay({ srcW, srcH }: { srcW: number; srcH: number }) {
             onDoubleClick={() => recenter(pane)}
           >
             <span className="absolute left-1 top-1 text-[11px] text-black font-semibold px-1 rounded-sm" style={{ backgroundColor: color }}>{`Foco ${index + 1}`}</span>
-            <div className="absolute -right-1.5 -bottom-1.5 w-3 h-3 rounded-sm cursor-nwse-resize" style={{ backgroundColor: color }} onPointerDown={(e) => drag(e, pane.id, "resize")} />
+            <div className="absolute top-1/2 -right-1.5 w-3 h-3 -translate-y-1/2 rounded-sm cursor-ew-resize" style={{ backgroundColor: color }} onPointerDown={(e) => drag(e, pane.id, "resize-x")} title="Largura" />
+            <div className="absolute left-1/2 -bottom-1.5 w-3 h-3 -translate-x-1/2 rounded-sm cursor-ns-resize" style={{ backgroundColor: color }} onPointerDown={(e) => drag(e, pane.id, "resize-y")} title="Altura" />
+            <div className="absolute -right-1.5 -bottom-1.5 w-3 h-3 rounded-sm cursor-nwse-resize" style={{ backgroundColor: color }} onPointerDown={(e) => drag(e, pane.id, "resize")} title="Largura e altura" />
           </div>
         );
       })}
@@ -900,15 +969,21 @@ function VerticalPreview({
   srcH,
   transcript,
   captionsEnabled,
+  editFrame = false,
 }: {
   videoRef: React.RefObject<HTMLVideoElement | null>;
   srcW: number;
   srcH: number;
   transcript: Transcript | null;
   captionsEnabled: boolean;
+  editFrame?: boolean;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameRef = useRef<HTMLDivElement>(null);
+  const measureRef = useRef<CanvasRenderingContext2D | null>(null);
+  if (!measureRef.current && typeof document !== "undefined") {
+    measureRef.current = document.createElement("canvas").getContext("2d");
+  }
   const PW = 270;
   const PH = (PW * OUT_H) / OUT_W;
   const captionPosition = useEditor((s) => s.captionPosition ?? DEFAULT_CAPTION_POSITION);
@@ -916,7 +991,15 @@ function VerticalPreview({
   const currentTime = useEditor((s) => s.currentTime);
   const overlays = useEditor((s) => s.imageOverlays ?? []);
   const updateImageOverlay = useEditor((s) => s.updateImageOverlay);
+  const textOverlays = useEditor((s) => s.textOverlays ?? []);
+  const updateTextOverlay = useEditor((s) => s.updateTextOverlay);
+  const composition = useEditor((s) => s.composition);
+  const compositionSegments = useEditor((s) => s.compositionSegments);
+  const setPaneDestination = useEditor((s) => s.setPaneDestination);
+  const activePaneId = useEditor((s) => s.activePaneId);
+  const setActivePane = useEditor((s) => s.setActivePane);
   const imageCache = useRef(new Map<string, HTMLImageElement>());
+  const paneImageCache = useRef(new Map<string, HTMLImageElement>());
   const currentLine = transcript?.lines.find((item, index) => {
     const nextStart = transcript.lines[index + 1]?.startMs ?? Infinity;
     return currentTime * 1000 >= item.startMs && (currentTime * 1000 < item.endMs || currentTime * 1000 < nextStart);
@@ -949,6 +1032,17 @@ function VerticalPreview({
     return () => { alive = false; };
   }, [overlays]);
 
+  // Imagens usadas como fonte de quadros (Fase 1C): carrega por URL; o RAF checa
+  // `complete` antes de desenhar.
+  useEffect(() => {
+    for (const src of paneImageSources(useEditor.getState())) {
+      if (paneImageCache.current.has(src)) continue;
+      const image = new Image();
+      image.src = src;
+      paneImageCache.current.set(src, image);
+    }
+  }, [composition, compositionSegments]);
+
   useEffect(() => {
     const c = canvasRef.current;
     const g = c?.getContext("2d");
@@ -961,8 +1055,14 @@ function VerticalPreview({
       g.fillRect(0, 0, PW, PH);
       if (v && v.readyState >= 2) {
         for (const pane of compositionAt(state, v?.currentTime ?? 0).sort((a, b) => a.zIndex - b.zIndex)) {
-          const p = cropToPixels(pane.crop, v.videoWidth || srcW, v.videoHeight || srcH);
           const d = pane.destination;
+          if (pane.source?.kind === "image") {
+            const img = paneImageCache.current.get(pane.source.src);
+            if (img?.complete && img.naturalWidth) drawImageCover(g, img, img.naturalWidth, img.naturalHeight, d.x * PW, d.y * PH, d.w * PW, d.h * PH);
+            continue;
+          }
+          if (pane.source?.kind === "video") continue; // Fase 2
+          const p = cropToPixels(pane.crop, v.videoWidth || srcW, v.videoHeight || srcH);
           g.drawImage(v, p.sx, p.sy, p.sw, p.sh, d.x * PW, d.y * PH, d.w * PW, d.h * PH);
         }
         for (const overlay of overlaysAt(state, v.currentTime)) {
@@ -1007,6 +1107,10 @@ function VerticalPreview({
             g.fillStyle = "#fff";
             rows.forEach((row, index) => g.fillText(row, statePosition.x * PW, boxY + 6 + index * lineHeight + lineHeight / 2));
           }
+        }
+
+        for (const text of textOverlaysAt(state, v.currentTime)) {
+          drawTextOverlay(g, text, PW, PH);
         }
       }
       raf = requestAnimationFrame(draw);
@@ -1057,6 +1161,77 @@ function VerticalPreview({
     window.addEventListener("pointerup", onUp);
   }
 
+  // Move/redimensiona a caixa de DESTINO do foco no vídeo final (9:16). Largura e
+  // altura livres (pode esticar): o render já desenha crop→destination.
+  function dragDest(e: React.PointerEvent, paneId: string, mode: "move" | "resize" | "resize-x" | "resize-y") {
+    e.preventDefault();
+    e.stopPropagation();
+    const box = frameRef.current?.getBoundingClientRect();
+    const st = useEditor.getState();
+    const pane = compositionAt(st, st.currentTime).find((p) => p.id === paneId);
+    if (!box || !pane) return;
+    setActivePane(paneId);
+    const start = { x: e.clientX, y: e.clientY, r: pane.destination };
+    const onMove = (ev: PointerEvent) => {
+      const dx = (ev.clientX - start.x) / box.width;
+      const dy = (ev.clientY - start.y) / box.height;
+      if (mode === "move") {
+        setPaneDestination(paneId, { ...start.r, x: start.r.x + dx, y: start.r.y + dy });
+      } else {
+        const r: NRect = { ...start.r };
+        if (mode !== "resize-y") r.w = Math.max(0.05, start.r.w + dx);
+        if (mode !== "resize-x") r.h = Math.max(0.05, start.r.h + dy);
+        setPaneDestination(paneId, r);
+      }
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  function dragText(e: React.PointerEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    const box = frameRef.current?.getBoundingClientRect();
+    if (!box) return;
+    const onMove = (event: PointerEvent) => updateTextOverlay(id, {
+      x: (event.clientX - box.left) / box.width,
+      y: (event.clientY - box.top) / box.height,
+    });
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
+  // Escala a fonte a partir do centro do texto: a razão entre a distância atual
+  // e a inicial do ponteiro ao centro. Vale para qualquer um dos 4 cantos.
+  function scaleText(e: React.PointerEvent, o: TextOverlay) {
+    e.preventDefault();
+    e.stopPropagation();
+    const box = frameRef.current?.getBoundingClientRect();
+    if (!box) return;
+    const cx = box.left + o.x * box.width;
+    const cy = box.top + o.y * box.height;
+    const startDist = Math.hypot(e.clientX - cx, e.clientY - cy) || 1;
+    const startSize = o.size;
+    const onMove = (event: PointerEvent) => {
+      const dist = Math.hypot(event.clientX - cx, event.clientY - cy);
+      updateTextOverlay(o.id, { size: startSize * (dist / startDist) });
+    };
+    const onUp = () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+  }
+
   return (
     <div ref={frameRef} className="relative self-center max-[700px]:max-w-full" style={{ width: PW, height: PH }}>
       <canvas ref={canvasRef} width={PW} height={PH} className="rounded-md max-[700px]:rounded-none border border-border bg-black" style={{ width: PW, height: PH }} />
@@ -1095,6 +1270,53 @@ function VerticalPreview({
           />
         </div>
       ))}
+      {editFrame && (compositionSegments?.find((s) => currentTime >= s.start && currentTime < s.end)?.panes ?? composition)?.map((pane, index) => {
+        const d = pane.destination;
+        const color = FOCUS_COLORS[index % FOCUS_COLORS.length]!;
+        const isActive = pane.id === activePaneId;
+        return (
+          <div
+            key={pane.id}
+            className="absolute z-20 touch-none cursor-move border-2"
+            style={{ left: `${d.x * 100}%`, top: `${d.y * 100}%`, width: `${d.w * 100}%`, height: `${d.h * 100}%`, borderColor: color, opacity: isActive ? 1 : 0.78 }}
+            onPointerDown={(e) => dragDest(e, pane.id, "move")}
+            title="Arraste para mover o foco; alças para largura/altura livres"
+          >
+            <span className="absolute left-0.5 top-0.5 text-[9px] text-black font-semibold px-1 rounded-sm" style={{ backgroundColor: color }}>{`Foco ${index + 1}`}</span>
+            <div className="absolute top-1/2 -right-1.5 h-3 w-3 -translate-y-1/2 rounded-sm cursor-ew-resize" style={{ backgroundColor: color }} onPointerDown={(e) => dragDest(e, pane.id, "resize-x")} title="Largura" />
+            <div className="absolute left-1/2 -bottom-1.5 h-3 w-3 -translate-x-1/2 rounded-sm cursor-ns-resize" style={{ backgroundColor: color }} onPointerDown={(e) => dragDest(e, pane.id, "resize-y")} title="Altura" />
+            <div className="absolute -right-1.5 -bottom-1.5 h-3 w-3 rounded-sm cursor-nwse-resize" style={{ backgroundColor: color }} onPointerDown={(e) => dragDest(e, pane.id, "resize")} title="Largura e altura" />
+          </div>
+        );
+      })}
+      {textOverlays.filter((t) => currentTime >= t.start && currentTime < t.end).map((text) => {
+        const ctx = measureRef.current;
+        const b = ctx ? textOverlayBox(ctx, text, PW, PH) : null;
+        if (!b) return null;
+        return (
+          <div
+            key={text.id}
+            className="absolute z-20 touch-none cursor-move border border-dashed border-fuchsia-400/90"
+            style={{ left: b.left, top: b.top, width: b.w, height: b.h }}
+            onPointerDown={(e) => dragText(e, text.id)}
+            title="Arraste para posicionar o texto"
+          >
+            {([
+              ["-top-1.5 -left-1.5", "cursor-nwse-resize"],
+              ["-top-1.5 -right-1.5", "cursor-nesw-resize"],
+              ["-bottom-1.5 -left-1.5", "cursor-nesw-resize"],
+              ["-bottom-1.5 -right-1.5", "cursor-nwse-resize"],
+            ] as const).map(([pos, cursor]) => (
+              <div
+                key={pos}
+                className={`absolute h-2.5 w-2.5 rounded-sm bg-fuchsia-400 ${pos} ${cursor}`}
+                onPointerDown={(e) => scaleText(e, text)}
+                title="Tamanho da fonte"
+              />
+            ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -1157,6 +1379,137 @@ function ImageOverlayControls() {
   );
 }
 
+/** Fase 1C: define a fonte de cada quadro (recorte do vídeo ou uma imagem). */
+function PaneSourceControls() {
+  const composition = useEditor((s) => s.composition);
+  const compositionSegments = useEditor((s) => s.compositionSegments);
+  const currentTime = useEditor((s) => s.currentTime);
+  const setPaneSource = useEditor((s) => s.setPaneSource);
+  const seg = compositionSegments?.find((s) => currentTime >= s.start && currentTime < s.end);
+  const panes = seg ? seg.panes : composition;
+  if (!panes?.length) return null;
+
+  function onFile(id: string, file: File) {
+    const reader = new FileReader();
+    reader.onload = () => setPaneSource(id, { kind: "image", src: String(reader.result) });
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div className="flex flex-col gap-2 border-t border-border pt-2">
+      <span className="text-[13px] text-muted">Fonte de cada quadro</span>
+      {panes.map((p, i) => (
+        <div key={p.id} className="flex items-center justify-between gap-2 text-xs">
+          <span className="text-muted">Foco {i + 1} — <span className="text-fg">{p.source?.kind === "image" ? "Imagem" : p.source?.kind === "video" ? "Vídeo externo" : "Recorte do vídeo"}</span></span>
+          <div className="flex items-center gap-1.5">
+            <label className="cursor-pointer rounded-sm bg-surface-2 px-2 py-1 text-fg hover:bg-surface-hover">
+              Imagem…
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="sr-only"
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) onFile(p.id, f); e.target.value = ""; }}
+              />
+            </label>
+            {p.source && (
+              <button type="button" onClick={() => setPaneSource(p.id, undefined)} className="rounded-sm px-2 py-1 text-muted hover:text-fg" title="Voltar a usar o recorte do vídeo">
+                Vídeo
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+const TEXT_FONT_OPTIONS: { value: TextFont; label: string }[] = [
+  { value: "sans", label: "Sans-serif" },
+  { value: "mono", label: "Monospace" },
+  { value: "serif", label: "Serifa" },
+  { value: "impact", label: "Impact" },
+];
+
+const TEXT_BG_OPTIONS: { value: TextBg; label: string }[] = [
+  { value: "none", label: "Nenhum" },
+  { value: "box", label: "Caixa" },
+  { value: "highlight", label: "Realce por linha" },
+];
+
+function TextOverlayControls() {
+  const texts = useEditor((s) => s.textOverlays ?? []);
+  const add = useEditor((s) => s.addTextOverlay);
+  const update = useEditor((s) => s.updateTextOverlay);
+  const remove = useEditor((s) => s.removeTextOverlay);
+
+  return (
+    <section className="rounded-md border border-border bg-surface p-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold">Textos</h3>
+          <p className="text-xs text-muted">Cada texto aparece no seu intervalo. Arraste no preview para posicionar.</p>
+        </div>
+        <button type="button" onClick={add} className="shrink-0 rounded-sm bg-accent px-2.5 py-1.5 text-xs font-semibold text-accent-fg hover:brightness-110">
+          Adicionar texto
+        </button>
+      </div>
+      {texts.length === 0 && (
+        <p className="mt-3 border-t border-border pt-3 text-xs text-muted">Nenhum texto ainda.</p>
+      )}
+      {texts.map((t) => (
+        <div key={t.id} className="mt-3 flex flex-col gap-2 border-t border-border pt-3 text-xs">
+          <div className="flex items-start gap-2">
+            <textarea
+              value={t.text}
+              onChange={(e) => update(t.id, { text: e.target.value })}
+              rows={2}
+              placeholder="Digite o texto…"
+              className="min-h-[2.5rem] flex-1 resize-y rounded-sm border border-border bg-surface-2 p-1.5 text-fg"
+            />
+            <button type="button" onClick={() => remove(t.id)} className="text-muted hover:text-danger" aria-label="Remover texto">×</button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="flex flex-col gap-1 text-muted">Fonte
+              <select value={t.font} onChange={(e) => update(t.id, { font: e.target.value as TextFont })} className="rounded-sm border border-border bg-surface-2 p-1 text-fg">
+                {TEXT_FONT_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </label>
+            <label className="flex flex-col gap-1 text-muted">Fundo
+              <select value={t.bg} onChange={(e) => update(t.id, { bg: e.target.value as TextBg })} className="rounded-sm border border-border bg-surface-2 p-1 text-fg">
+                {TEXT_BG_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-1.5 text-muted">Cor
+              <input type="color" value={t.color} onChange={(e) => update(t.id, { color: e.target.value })} className="h-6 w-8 rounded border border-border bg-transparent" />
+            </label>
+            {t.bg !== "none" && (
+              <>
+                <label className="flex items-center gap-1.5 text-muted">Fundo
+                  <input type="color" value={t.bgColor} onChange={(e) => update(t.id, { bgColor: e.target.value })} className="h-6 w-8 rounded border border-border bg-transparent" />
+                </label>
+                <label className="flex items-center gap-1.5 text-muted">Opac.
+                  <input type="range" min="0" max="1" step="0.01" value={t.bgOpacity} onChange={(e) => update(t.id, { bgOpacity: Number(e.target.value) })} className="w-20 accent-twitch" />
+                </label>
+              </>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="flex items-center gap-1.5 text-muted">Tamanho
+              <input type="range" min="0.02" max="0.2" step="0.005" value={t.size} onChange={(e) => update(t.id, { size: Number(e.target.value) })} className="w-24 accent-twitch" />
+            </label>
+            <label className="flex items-center gap-1.5 text-muted">Largura
+              <input type="range" min="0.1" max="1" step="0.01" value={t.width} onChange={(e) => update(t.id, { width: Number(e.target.value) })} className="w-24 accent-twitch" />
+            </label>
+          </div>
+          <p className="text-[11px] text-muted">Ajuste o tempo arrastando as bordas do bloco na faixa <span className="text-fuchsia-300">TXT</span> da timeline.</p>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 /** Liga/desliga o keyframe de crop no instante atual da faixa ativa. */
 function KeyframeControls() {
   const keyframes = useFraming("keyframes");
@@ -1192,7 +1545,9 @@ type FaceDetectorCtor = new (o?: { fastMode?: boolean }) => {
   detect: (src: CanvasImageSource) => Promise<{ boundingBox: DOMRectReadOnly }[]>;
 };
 
-/** Automações: presets, zoom nos picos de áudio e detecção da webcam. */
+/** Automações: presets, zoom nos picos de áudio e detecção da webcam.
+ *  Oculto por enquanto (ferramenta "Efeitos" desativada); será reativado depois. */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function MotionControls({
   videoRef,
   sourceUrl,
@@ -1309,11 +1664,43 @@ function MotionControls({
   );
 }
 
-function FocusLayoutPicker({ srcW, srcH }: { srcW: number; srcH: number }) {
-  const panes = useEditor((s) => s.composition);
+/** Botão de aba contextual (ícone + rótulo) exibido acima da timeline no desktop. */
+function ContextTabBtn({
+  icon,
+  label,
+  active,
+  onClick,
+}: {
+  icon: React.ComponentProps<typeof Icon>["name"];
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1.5 text-xs font-medium transition-colors ${active ? "bg-accent text-accent-fg" : "text-muted hover:bg-surface-2 hover:text-fg"}`}
+    >
+      <Icon name={icon} width={16} height={16} />
+      {label}
+    </button>
+  );
+}
+
+function FocusLayoutPicker({ srcW, srcH, onPicked }: { srcW: number; srcH: number; onPicked?: () => void }) {
+  const composition = useEditor((s) => s.composition);
+  const compositionSegments = useEditor((s) => s.compositionSegments);
+  const currentTime = useEditor((s) => s.currentTime);
   const setComposition = useEditor((s) => s.setComposition);
   const addTrack = useEditor((s) => s.addTrack);
-  const currentTime = useEditor((s) => s.currentTime);
+  const addCompositionLayout = useEditor((s) => s.addCompositionLayout);
+  const removeCompositionLayout = useEditor((s) => s.removeCompositionLayout);
+  // Segmento de layout vigente no instante atual (Fase 1B), se houver.
+  const segIndex = compositionSegments?.findIndex((s) => currentTime >= s.start && currentTime < s.end) ?? -1;
+  const activeSeg = segIndex >= 0 ? compositionSegments![segIndex] : undefined;
+  const panes = activeSeg ? activeSeg.panes : composition;
   const count = panes?.length ?? 1;
   const current = count === 4 ? "grid_2x2" : count === 2
     ? (panes?.[0]?.destination.w === 0.5 ? "split_vertical" : "split_horizontal")
@@ -1324,13 +1711,18 @@ function FocusLayoutPicker({ srcW, srcH }: { srcW: number; srcH: number }) {
     ["split_horizontal", "2 linhas"],
     ["grid_2x2", "Grade 4"],
   ] as const;
+  const seedPreset = current !== "full" ? current : "split_vertical";
   return (
     <div className="flex flex-col gap-2">
       <span className="text-[13px] text-muted">Composição de focos</span>
-      <span className="text-[12px] text-muted">Escolha um formato e arraste cada foco no vídeo para enquadrar os apresentadores.</span>
+      <span className="text-[12px] text-muted">
+        {activeSeg
+          ? `Editando layout por tempo (${activeSeg.start.toFixed(1)}s–${activeSeg.end.toFixed(1)}s). Arraste os focos no vídeo.`
+          : "Escolha um formato e arraste cada foco no vídeo para enquadrar os apresentadores."}
+      </span>
       <div className="flex flex-wrap gap-2">
         {options.map(([preset, label]) => (
-          <Button key={preset} size="sm" variant={current === preset ? "primary" : "secondary"} onClick={() => setComposition(preset, srcW, srcH)}>
+          <Button key={preset} size="sm" variant={current === preset ? "primary" : "secondary"} onClick={() => { setComposition(preset, srcW, srcH); onPicked?.(); }}>
             {label}
           </Button>
         ))}
@@ -1340,10 +1732,23 @@ function FocusLayoutPicker({ srcW, srcH }: { srcW: number; srcH: number }) {
           onClick={() => {
             if (panes?.length) setComposition("full", srcW, srcH);
             addTrack(currentTime);
+            onPicked?.();
           }}
         >
           Adicionar webcam
         </Button>
+      </div>
+      <div className="mt-1 flex flex-wrap items-center gap-2 border-t border-border pt-2">
+        {activeSeg ? (
+          <Button size="sm" variant="ghost" onClick={() => removeCompositionLayout(segIndex)}>
+            Remover este layout
+          </Button>
+        ) : (
+          <Button size="sm" variant="secondary" onClick={() => { addCompositionLayout(seedPreset, srcW, srcH); onPicked?.(); }}>
+            + Layout por tempo aqui
+          </Button>
+        )}
+        <span className="text-[11px] text-muted">Layouts por tempo aparecem na faixa <span className="text-amber-300">LAY</span> da timeline; arraste as bordas para ajustar o intervalo.</span>
       </div>
     </div>
   );

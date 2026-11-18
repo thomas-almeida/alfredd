@@ -19,6 +19,10 @@ import {
   segmentsTotal,
   compositionAt,
   overlaysAt,
+  textOverlaysAt,
+  drawTextOverlay,
+  paneImageSources,
+  drawImageCover,
   outputSegments,
   type EditorState,
 } from "./layouts";
@@ -57,6 +61,13 @@ async function run({ sourceUrl, state, captions = [] }: ExportRequest) {
     const response = await fetch(overlay.src);
     if (!response.ok) throw new Error("Não foi possível carregar a imagem da marca d’água.");
     overlayImages.set(overlay.id, await createImageBitmap(await response.blob()));
+  }
+  // Imagens usadas como fonte de quadros (Fase 1C), por URL.
+  const paneImages = new Map<string, ImageBitmap>();
+  for (const src of paneImageSources(state)) {
+    const response = await fetch(src);
+    if (!response.ok) throw new Error("Não foi possível carregar a imagem de um quadro.");
+    paneImages.set(src, await createImageBitmap(await response.blob()));
   }
 
   const canvas = new OffscreenCanvas(OUT_W, OUT_H);
@@ -100,8 +111,14 @@ async function run({ sourceUrl, state, captions = [] }: ExportRequest) {
         g.fillRect(0, 0, OUT_W, OUT_H);
         // Todos os focos podem usar o mesmo frame com crops diferentes.
         for (const pane of compositionAt(state, frame.timestamp).sort((a, b) => a.zIndex - b.zIndex)) {
-          const c = cropToPixels(pane.crop, srcW, srcH);
           const d = pane.destination;
+          if (pane.source?.kind === "image") {
+            const img = paneImages.get(pane.source.src);
+            if (img) drawImageCover(g, img, img.width, img.height, d.x * OUT_W, d.y * OUT_H, d.w * OUT_W, d.h * OUT_H);
+            continue;
+          }
+          if (pane.source?.kind === "video") continue; // Fase 2: fonte de vídeo externo (ainda não no export)
+          const c = cropToPixels(pane.crop, srcW, srcH);
           g.drawImage(frame.canvas, c.sx, c.sy, c.sw, c.sh, d.x * OUT_W, d.y * OUT_H, d.w * OUT_W, d.h * OUT_H);
         }
         for (const overlay of overlaysAt(state, frame.timestamp)) {
@@ -113,6 +130,9 @@ async function run({ sourceUrl, state, captions = [] }: ExportRequest) {
         }
         const cue = captions.find((x) => frame.timestamp * 1000 >= x.startMs && frame.timestamp * 1000 < x.endMs);
         if (cue) drawCaption(g, cue.text, state.captionPosition);
+        for (const text of textOverlaysAt(state, frame.timestamp)) {
+          drawTextOverlay(g, text, OUT_W, OUT_H);
+        }
         await videoSource.add(t, 1 / fps);
         post({ type: "progress", value: Math.min(0.99, t / length) });
       }
@@ -148,6 +168,7 @@ async function run({ sourceUrl, state, captions = [] }: ExportRequest) {
   const buffer = (output.target as BufferTarget).buffer;
   if (!buffer) throw new Error("Saída vazia.");
   for (const image of overlayImages.values()) image.close();
+  for (const image of paneImages.values()) image.close();
   post({ type: "done", buffer, duration: length }, [buffer]);
 }
 

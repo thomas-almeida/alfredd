@@ -40,6 +40,35 @@ export interface ImageOverlay {
   opacity: number;
 }
 
+export type TextFont = "sans" | "mono" | "serif" | "impact";
+export type TextBg = "none" | "box" | "highlight";
+
+/** Texto sobreposto ao vídeo, em coordenadas normalizadas do canvas final. */
+export interface TextOverlay {
+  id: string;
+  text: string;
+  start: number;
+  end: number;
+  /** Centro normalizado do bloco de texto. */
+  x: number;
+  y: number;
+  /** Tamanho da fonte como fração da altura do canvas. */
+  size: number;
+  /** Largura máxima normalizada para quebra de linha. */
+  width: number;
+  color: string;
+  font: TextFont;
+  bg: TextBg;
+  bgColor: string;
+  bgOpacity: number;
+}
+
+/** Fonte de um quadro: recorte do vídeo principal (padrão), imagem ou vídeo externo. */
+export type PaneSource =
+  | { kind: "clip" }
+  | { kind: "image"; src: string }
+  | { kind: "video"; src: string; muted?: boolean; offset?: number };
+
 /** Um foco independente sobre a mesma fonte de vídeo. */
 export interface FocusPane {
   id: string;
@@ -47,6 +76,16 @@ export interface FocusPane {
   /** Retângulo normalizado no canvas final 1080×1920. */
   destination: NRect;
   zIndex: number;
+  /** Fonte do quadro; ausente/`clip` = recorte do vídeo principal (retrocompat). */
+  source?: PaneSource;
+}
+
+/** Composição (conjunto de focos) válida num intervalo de tempo da fonte. */
+export interface CompositionSegment {
+  id: string;
+  start: number;
+  end: number;
+  panes: FocusPane[];
 }
 
 export interface Trim {
@@ -75,9 +114,12 @@ export interface EditorState {
   keyframes?: Keyframe[];
   /** Composição simultânea de focos; ausente em projetos antigos. */
   composition?: FocusPane[];
+  /** Composições por faixa de tempo; quando presentes, têm prioridade sobre `composition`. */
+  compositionSegments?: CompositionSegment[];
   /** Posição normalizada do centro das legendas no canvas final. */
   captionPosition?: CaptionPosition;
   imageOverlays?: ImageOverlay[];
+  textOverlays?: TextOverlay[];
 }
 
 /** Crops fixados num instante `t` (tempo da fonte). */
@@ -453,6 +495,13 @@ export function framingAt(state: EditorState, t: number): Framing {
 
 /** Composição usada simultaneamente pelo preview e pelo export. */
 export function compositionAt(state: EditorState, t: number): FocusPane[] {
+  const segs = state.compositionSegments;
+  if (segs?.length) {
+    const seg = segs.find((s) => t >= s.start && t < s.end);
+    // Segmento sem focos cai no padrão (evita frame preto); senão usa seus focos.
+    if (seg && seg.panes.length) return seg.panes;
+    // Fora de qualquer segmento: cai no padrão (global ou enquadramento).
+  }
   if (state.composition?.length) return state.composition;
   const f = framingAt(state, t);
   return slotsFor(f.layout, f.camPos).map((slot) => ({
@@ -471,4 +520,152 @@ export function outputSegments(state: EditorState): Trim[] {
 
 export function overlaysAt(state: EditorState, t: number): ImageOverlay[] {
   return (state.imageOverlays ?? []).filter((overlay) => t >= overlay.start && t < overlay.end);
+}
+
+export function textOverlaysAt(state: EditorState, t: number): TextOverlay[] {
+  return (state.textOverlays ?? []).filter((o) => t >= o.start && t < o.end);
+}
+
+/** URLs únicas de imagens usadas como fonte de algum quadro (Fase 1C). */
+export function paneImageSources(state: EditorState): string[] {
+  const srcs = new Set<string>();
+  const collect = (panes?: FocusPane[]) =>
+    panes?.forEach((p) => { if (p.source?.kind === "image") srcs.add(p.source.src); });
+  collect(state.composition);
+  state.compositionSegments?.forEach((s) => collect(s.panes));
+  return [...srcs];
+}
+
+/** Desenha uma imagem preenchendo o destino (object-fit: cover), cortando o excesso. */
+export function drawImageCover(
+  ctx: CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D,
+  img: CanvasImageSource,
+  iw: number,
+  ih: number,
+  dx: number,
+  dy: number,
+  dw: number,
+  dh: number,
+) {
+  if (!iw || !ih) return;
+  const ir = iw / ih;
+  const dr = dw / dh;
+  let sx = 0, sy = 0, sw = iw, sh = ih;
+  if (ir > dr) {
+    sw = ih * dr;
+    sx = (iw - sw) / 2;
+  } else {
+    sh = iw / dr;
+    sy = (ih - sh) / 2;
+  }
+  ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+}
+
+const TEXT_FONT_FAMILY: Record<TextFont, string> = {
+  sans: "system-ui, 'Segoe UI', Arial, sans-serif",
+  mono: "ui-monospace, 'Consolas', 'Courier New', monospace",
+  serif: "Georgia, 'Times New Roman', serif",
+  impact: "Impact, 'Anton', 'Arial Narrow', sans-serif",
+};
+
+type AnyCanvasCtx = CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D;
+
+/** Quebra o texto em linhas que cabem em `maxWidth`, respeitando quebras manuais. */
+export function wrapTextLines(ctx: AnyCanvasCtx, text: string, maxWidth: number): string[] {
+  const out: string[] = [];
+  for (const paragraph of text.split("\n")) {
+    const words = paragraph.split(/\s+/).filter(Boolean);
+    if (!words.length) {
+      out.push("");
+      continue;
+    }
+    let row = "";
+    for (const word of words) {
+      const candidate = row ? `${row} ${word}` : word;
+      if (row && ctx.measureText(candidate).width > maxWidth) {
+        out.push(row);
+        row = word;
+      } else {
+        row = candidate;
+      }
+    }
+    if (row) out.push(row);
+  }
+  return out;
+}
+
+function roundRectPath(ctx: AnyCanvasCtx, x: number, y: number, w: number, h: number, r: number) {
+  const rad = Math.max(0, Math.min(r, w / 2, h / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + rad, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rad);
+  ctx.arcTo(x + w, y + h, x, y + h, rad);
+  ctx.arcTo(x, y + h, x, y, rad);
+  ctx.arcTo(x, y, x + w, y, rad);
+  ctx.closePath();
+}
+
+/**
+ * Caixa (em px do canvas W×H) que envolve o texto desenhado, usando a MESMA
+ * fonte/quebra/paddings de `drawTextOverlay` — assim a seleção no preview casa
+ * exatamente com o texto renderizado.
+ */
+export function textOverlayBox(ctx: AnyCanvasCtx, o: TextOverlay, W: number, H: number) {
+  const fontPx = Math.max(8, o.size * H);
+  const weight = o.font === "impact" ? "800" : "700";
+  ctx.font = `${weight} ${fontPx}px ${TEXT_FONT_FAMILY[o.font]}`;
+  const maxWidth = Math.max(16, o.width * W);
+  const lines = wrapTextLines(ctx, o.text || "", maxWidth);
+  const lineHeight = fontPx * 1.2;
+  const padX = fontPx * 0.35;
+  const padY = fontPx * 0.22;
+  const widths = lines.map((line) => ctx.measureText(line).width);
+  const blockW = Math.max(1, ...widths);
+  const w = blockW + padX * 2;
+  const h = lines.length * lineHeight + padY * 2;
+  return { left: o.x * W - w / 2, top: o.y * H - h / 2, w, h };
+}
+
+/**
+ * Desenho único usado pelo preview e pelo export, garantindo que o texto saia
+ * idêntico nos dois. `W`/`H` são as dimensões do canvas de destino.
+ */
+export function drawTextOverlay(ctx: AnyCanvasCtx, o: TextOverlay, W: number, H: number) {
+  const fontPx = Math.max(8, o.size * H);
+  const weight = o.font === "impact" ? "800" : "700";
+  ctx.font = `${weight} ${fontPx}px ${TEXT_FONT_FAMILY[o.font]}`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  const maxWidth = Math.max(16, o.width * W);
+  const lines = wrapTextLines(ctx, o.text || "", maxWidth);
+  const lineHeight = fontPx * 1.2;
+  const padX = fontPx * 0.35;
+  const padY = fontPx * 0.22;
+  const blockH = lines.length * lineHeight;
+  const widths = lines.map((line) => ctx.measureText(line).width);
+  const blockW = Math.max(1, ...widths);
+  const cx = o.x * W;
+  const top = o.y * H - blockH / 2;
+  const alpha = Math.min(1, Math.max(0, o.bgOpacity));
+
+  if (o.bg === "box") {
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = o.bgColor;
+    roundRectPath(ctx, cx - blockW / 2 - padX, top - padY, blockW + padX * 2, blockH + padY * 2, padY * 1.4);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+  lines.forEach((line, index) => {
+    const ly = top + index * lineHeight + lineHeight / 2;
+    if (o.bg === "highlight" && line) {
+      const w = widths[index]!;
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = o.bgColor;
+      roundRectPath(ctx, cx - w / 2 - padX, ly - lineHeight / 2, w + padX * 2, lineHeight, padY);
+      ctx.fill();
+      ctx.globalAlpha = 1;
+    }
+    ctx.fillStyle = o.color;
+    ctx.fillText(line, cx, ly);
+  });
 }

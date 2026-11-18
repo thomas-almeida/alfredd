@@ -91,7 +91,7 @@ function useFilmstrip(url: string, duration: number) {
 }
 
 /** "video" = faixa principal; número = faixa extra (índice `ti`, 1-based). */
-export type Track = "video" | "audio" | "image" | number;
+export type Track = "video" | "audio" | "image" | "text" | "layout" | number;
 export type Selection = { track: Track; i: number } | null;
 
 const RATES = [0.5, 1, 1.5, 2];
@@ -164,6 +164,8 @@ export function Timeline({
   const audio = useEditor((s) => s.audio);
   const tracks = useEditor((s) => s.tracks) ?? [];
   const imageOverlays = useEditor((s) => s.imageOverlays) ?? [];
+  const textOverlays = useEditor((s) => s.textOverlays) ?? [];
+  const layoutSegments = useEditor((s) => s.compositionSegments) ?? [];
   const activeTrack = useEditor((s) => s.activeTrack);
   const mainKeyframes = useEditor((s) => s.keyframes);
   const currentTime = useEditor((s) => s.currentTime);
@@ -245,6 +247,8 @@ export function Timeline({
       ["video", st.segments],
       ["audio", st.audio ?? []],
       ["image", imageOverlays],
+      ["text", textOverlays],
+      ["layout", layoutSegments],
       ...(st.tracks ?? []).map((tr, k) => [k + 1, tr.segments] as [Track, typeof tr.segments]),
     ];
     for (const [key, list] of lists) {
@@ -273,6 +277,11 @@ export function Timeline({
       if (track === "image") {
         const overlay = st.imageOverlays?.[i];
         if (overlay) st.setImageOverlayEdge(overlay.id, which, t);
+      } else if (track === "text") {
+        const text = st.textOverlays?.[i];
+        if (text) st.setTextOverlayEdge(text.id, which, t);
+      } else if (track === "layout") {
+        st.setCompositionLayoutEdge(i, which, t);
       } else if (typeof track === "number") st.setTrackSegmentEdge(track, i, which, t);
       else if (track === "audio") st.setAudioSegmentEdge(i, which, t);
       else st.setSegmentEdge(i, which, t);
@@ -300,6 +309,10 @@ export function Timeline({
   const editTrack: Track =
     selected?.track === "image"
       ? "image"
+      : selected?.track === "text"
+      ? "text"
+      : selected?.track === "layout"
+      ? "layout"
       : selected?.track === "audio" && detached
         ? "audio"
         : typeof selected?.track === "number"
@@ -310,7 +323,7 @@ export function Timeline({
 
   function doSplit() {
     const st = useEditor.getState();
-    if (editTrack === "image") return;
+    if (editTrack === "image" || editTrack === "text" || editTrack === "layout") return;
     if (typeof editTrack === "number") st.splitTrack(editTrack, st.currentTime);
     else if (editTrack === "audio") st.splitAudio(st.currentTime);
     else st.split(st.currentTime);
@@ -325,12 +338,21 @@ export function Timeline({
           ? (st.audio ?? [])
             : editTrack === "image"
               ? (st.imageOverlays ?? []).map((x) => ({ start: x.start, end: x.end }))
-              : st.segments;
+              : editTrack === "text"
+                ? (st.textOverlays ?? []).map((x) => ({ start: x.start, end: x.end }))
+                : editTrack === "layout"
+                  ? (st.compositionSegments ?? []).map((x) => ({ start: x.start, end: x.end }))
+                  : st.segments;
     const i = selected && selected.track === editTrack ? selected.i : segmentIndexAt(list, st.currentTime);
     if (i < 0) return;
     if (editTrack === "image") {
       const overlay = st.imageOverlays?.[i];
       if (overlay) st.removeImageOverlay(overlay.id);
+    } else if (editTrack === "text") {
+      const text = st.textOverlays?.[i];
+      if (text) st.removeTextOverlay(text.id);
+    } else if (editTrack === "layout") {
+      st.removeCompositionLayout(i);
     } else if (typeof editTrack === "number") st.removeTrackSegment(editTrack, i);
     else if (editTrack === "audio") st.removeAudioAt(i);
     else st.removeAt(i);
@@ -339,7 +361,8 @@ export function Timeline({
 
   function selectTrack(track: Track, i: number) {
     onSelect({ track, i });
-    if (track !== "audio" && track !== "image") useEditor.getState().setActiveTrack(typeof track === "number" ? track : 0);
+    if (track === "layout") useEditor.getState().selectLayout(i);
+    if (track !== "audio" && track !== "image" && track !== "text" && track !== "layout") useEditor.getState().setActiveTrack(typeof track === "number" ? track : 0);
   }
 
   function seekEdge(dir: -1 | 1) {
@@ -359,6 +382,10 @@ export function Timeline({
   const removeDisabled =
     editTrack === "image"
       ? !imageOverlays.length
+      : editTrack === "text"
+        ? !textOverlays.length
+      : editTrack === "layout"
+        ? !layoutSegments.length
       : typeof editTrack === "number"
         ? !tracks[editTrack - 1]?.segments.length
         : editTrack === "video"
@@ -484,12 +511,30 @@ export function Timeline({
               </div>
             </div>
           ))}
+          {layoutSegments.length > 0 && (
+            <div className="flex flex-col">
+              <div className="h-1" />
+              <div className="flex flex-col items-center justify-center text-amber-400" style={{ height: trackH }} title="Layouts por tempo">
+                <Icon name="grid" width={15} height={15} />
+                <span className="text-[9px]">LAY</span>
+              </div>
+            </div>
+          )}
           {imageOverlays.length > 0 && (
             <div className="flex flex-col">
               <div className="h-1" />
               <div className="flex flex-col items-center justify-center text-sky-400" style={{ height: trackH }} title="Imagens / marcas d’água">
                 <Icon name="film" width={15} height={15} />
                 <span className="text-[9px]">IMG</span>
+              </div>
+            </div>
+          )}
+          {textOverlays.length > 0 && (
+            <div className="flex flex-col">
+              <div className="h-1" />
+              <div className="flex flex-col items-center justify-center text-fuchsia-400" style={{ height: trackH }} title="Textos">
+                <Icon name="subtitles" width={15} height={15} />
+                <span className="text-[9px]">TXT</span>
               </div>
             </div>
           )}
@@ -592,6 +637,33 @@ export function Timeline({
               </div>
             ))}
 
+            {layoutSegments.length > 0 && (
+              <div>
+                <div className="h-1" />
+                <div className="relative rounded-sm bg-border/40 overflow-hidden transition-[height]" style={{ height: trackH }}>
+                  {layoutSegments.map((seg, i) => (
+                    <SegmentBlock
+                      key={seg.id}
+                      left={pct(seg.start)}
+                      width={pct(seg.end - seg.start)}
+                      tone="layout"
+                      selected={selected?.track === "layout" && selected.i === i}
+                      onDown={(e) => {
+                        e.stopPropagation();
+                        selectTrack("layout", i);
+                        onSeek(timeAt(e.clientX));
+                      }}
+                      onEdge={(e, w) => dragEdge(e, "layout", i, w)}
+                    >
+                      <span className="absolute inset-0 flex items-center px-2 text-[10px] text-fg/80 pointer-events-none truncate">
+                        {seg.panes.length <= 1 ? "Tela cheia" : `${seg.panes.length} focos`}
+                      </span>
+                    </SegmentBlock>
+                  ))}
+                </div>
+              </div>
+            )}
+
             {imageOverlays.length > 0 && (
               <div>
                 <div className="h-1" />
@@ -611,6 +683,31 @@ export function Timeline({
                       onEdge={(e, w) => dragEdge(e, "image", i, w)}
                     >
                       <span className="absolute inset-0 flex items-center justify-center px-2 text-[10px] text-fg/80 pointer-events-none truncate">Marca d’água</span>
+                    </SegmentBlock>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {textOverlays.length > 0 && (
+              <div>
+                <div className="h-1" />
+                <div className="relative rounded-sm bg-border/40 overflow-hidden transition-[height]" style={{ height: trackH }}>
+                  {textOverlays.map((text, i) => (
+                    <SegmentBlock
+                      key={text.id}
+                      left={pct(text.start)}
+                      width={pct(text.end - text.start)}
+                      tone="text"
+                      selected={selected?.track === "text" && selected.i === i}
+                      onDown={(e) => {
+                        e.stopPropagation();
+                        selectTrack("text", i);
+                        onSeek(timeAt(e.clientX));
+                      }}
+                      onEdge={(e, w) => dragEdge(e, "text", i, w)}
+                    >
+                      <span className="absolute inset-0 flex items-center px-2 text-[10px] text-fg/80 pointer-events-none truncate">{text.text || "Texto"}</span>
                     </SegmentBlock>
                   ))}
                 </div>
@@ -700,14 +797,14 @@ function SegmentBlock({
   left: string;
   width: string;
   selected: boolean;
-  tone?: "video" | "audio" | "overlay";
+  tone?: "video" | "audio" | "overlay" | "text" | "layout";
   onDown: (e: React.PointerEvent) => void;
   onEdge?: (e: React.PointerEvent, which: "start" | "end") => void;
   children?: React.ReactNode;
 }) {
-  const color = tone === "audio" ? "bg-emerald-500" : tone === "overlay" ? "bg-sky-500" : "bg-accent";
-  const border = tone === "audio" ? "border-emerald-500/70" : tone === "overlay" ? "border-sky-500/80" : "border-accent/80";
-  const bg = tone === "audio" ? "bg-emerald-500/15" : tone === "overlay" ? "bg-sky-500/25" : "bg-accent/15";
+  const color = tone === "audio" ? "bg-emerald-500" : tone === "text" ? "bg-fuchsia-500" : tone === "layout" ? "bg-amber-500" : tone === "overlay" ? "bg-sky-500" : "bg-accent";
+  const border = tone === "audio" ? "border-emerald-500/70" : tone === "text" ? "border-fuchsia-500/80" : tone === "layout" ? "border-amber-500/80" : tone === "overlay" ? "border-sky-500/80" : "border-accent/80";
+  const bg = tone === "audio" ? "bg-emerald-500/15" : tone === "text" ? "bg-fuchsia-500/20" : tone === "layout" ? "bg-amber-500/20" : tone === "overlay" ? "bg-sky-500/25" : "bg-accent/15";
   return (
     <div
       className={`absolute top-0 bottom-0 touch-none rounded-sm overflow-hidden border-2 ${selected ? "border-fg" : border} ${bg}`}
