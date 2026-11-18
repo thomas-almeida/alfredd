@@ -107,9 +107,9 @@ export async function AppShell({
           className={
             authed
               ? wide
-                ? `app-shell-main [grid-area:main] min-w-0 w-full max-w-none overflow-x-hidden p-3 max-[860px]:p-4 ${mobileEditor ? "mobile-editor-main" : ""}`
-                : `app-shell-main [grid-area:main] min-w-0 overflow-x-hidden p-6 max-w-[1400px] w-full mx-auto max-[860px]:p-4 ${mobileEditor ? "mobile-editor-main" : ""}`
-              : `app-shell-main [grid-area:main] min-w-0 overflow-x-hidden p-6 w-full max-w-[1120px] mx-auto max-[860px]:p-4 ${mobileEditor ? "mobile-editor-main" : ""}`
+                ? `app-shell-main [grid-area:main] min-w-0 w-full max-w-none overflow-x-clip p-3 max-[860px]:p-4 ${mobileEditor ? "mobile-editor-main" : ""}`
+                : `app-shell-main [grid-area:main] min-w-0 overflow-x-clip p-6 max-w-[1400px] w-full mx-auto max-[860px]:p-4 ${mobileEditor ? "mobile-editor-main" : ""}`
+              : `app-shell-main [grid-area:main] min-w-0 overflow-x-clip p-6 w-full max-w-[1120px] mx-auto max-[860px]:p-4 ${mobileEditor ? "mobile-editor-main" : ""}`
           }
         >
           {children}
