@@ -150,6 +150,16 @@ type SubscriptionsRow = {
   updated_at: string;
 }
 
+type BillingEventsRow = {
+  id: string;
+  provider: string;
+  external_id: string;
+  type: string;
+  payload: Json;
+  processed_at: string | null;
+  created_at: string;
+}
+
 type YtEngagementSnapshotsRow = {
   id: number;
   kind: "video" | "channel";
@@ -260,6 +270,7 @@ export interface Database {
       favorites: Table<FavoritesRow>;
       library_items: Table<LibraryItemsRow>;
       subscriptions: Table<SubscriptionsRow>;
+      billing_events: Table<BillingEventsRow>;
       clip_projects: Table<ClipProjectsRow>;
       renders: Table<RendersRow>;
       channel_presets: Table<ChannelPresetsRow>;

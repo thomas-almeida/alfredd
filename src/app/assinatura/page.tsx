@@ -3,19 +3,22 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Icon } from "@/components/ui/Icon";
 import { cn } from "@/lib/cn";
+import { PRO_MONTHLY_LABEL, PRO_LIFETIME_LABEL } from "@/lib/permissions/quotas";
+import { getServerEnv } from "@/lib/env";
+import { CheckoutButton } from "@/features/billing/CheckoutButton";
 
 export const metadata = { title: "Assinatura" };
 
 const free = [
   "Pesquisa e navegação sem login",
   "Busca e organização de clipes",
-  "Favoritos ilimitados de jogos e criadores",
+  "3 jogos e 3 criadores favoritos",
   "5 clipes salvos no total",
 ];
 const pro = [
   "Biblioteca sem limites artificiais",
-  "Até 20 monitoramentos ativos",
-  "Alertas por Telegram e e-mail",
+  "Monitoramentos Ilimitados",
+  "Alertas por Telegram, WhatsApp e e-mail",
   "Filtros e histórico avançados",
 ];
 
@@ -28,8 +31,8 @@ const highlights = [
 
 const compare: [string, string | boolean, string | boolean][] = [
   ["Busca de jogos e streamers", true, true],
-  ["Jogos favoritos", "Ilimitado", "Ilimitado"],
-  ["Criadores favoritos", "Ilimitado", "Ilimitado"],
+  ["Jogos favoritos", "3", "Ilimitado"],
+  ["Criadores favoritos", "3", "Ilimitado"],
   ["Clipes salvos", "5", "Ilimitado"],
   ["Monitoramentos ativos", false, "20"],
   ["Alertas por Telegram e e-mail", false, true],
@@ -70,9 +73,21 @@ function Cell({ v, pro }: { v: string | boolean; pro?: boolean }) {
   return <span className={pro ? "font-semibold text-accent" : "text-muted"}>{v}</span>;
 }
 
-export default function AssinaturaPage() {
+export default async function AssinaturaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ pago?: string }>;
+}) {
+  const { pago } = await searchParams;
+  const env = getServerEnv();
+  const billingEnabled = Boolean(env.ABACATEPAY_PROD_KEY || env.ABACATEPAY_DEV_KEY);
   return (
     <AppShell crumbs={[{ label: "Assinatura" }]}>
+      {pago && (
+        <div className="mx-auto mb-4 max-w-[640px] rounded-lg border border-accent bg-accent/10 px-4 py-3 text-center text-sm text-fg">
+          Pagamento recebido! Seu PRO é ativado em instantes após a confirmação do Pix.
+        </div>
+      )}
       <section className="text-center max-w-[640px] mx-auto pt-4 pb-10">
         <Badge tone="accent">Planos</Badge>
         <h1 className="mt-4 text-4xl max-[640px]:text-3xl font-bold tracking-tight">
@@ -84,7 +99,7 @@ export default function AssinaturaPage() {
         </p>
       </section>
 
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-5 max-w-[820px] mx-auto items-stretch">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-5 max-w-[1100px] mx-auto items-stretch">
         <div className="flex flex-col p-6 border border-border rounded-lg bg-surface">
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold">Free</h3>
@@ -106,13 +121,13 @@ export default function AssinaturaPage() {
           </span>
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-semibold flex items-center gap-2">
-              PRO <Icon name="star" width={16} height={16} className="text-accent" />
+              PRO Mensal <Icon name="star" width={16} height={16} className="text-accent" />
             </h3>
             <Badge tone="accent">Recomendado</Badge>
           </div>
           <p className="text-[13px] text-muted mt-1">Para quem vive de clipes.</p>
           <div className="mt-5 flex items-baseline gap-1">
-            <span className="text-4xl font-bold">R$ 37,90</span>
+            <span className="text-4xl font-bold">{PRO_MONTHLY_LABEL}</span>
             <span className="text-muted">/mês</span>
           </div>
           <div className="text-xs text-subtle mt-1">cancele quando quiser</div>
@@ -120,11 +135,36 @@ export default function AssinaturaPage() {
           <p className="text-xs uppercase tracking-wider text-subtle mb-3">Tudo do Free, mais:</p>
           <FeatureList items={pro} />
           <div className="mt-auto pt-6">
-            <Button variant="primary" className="w-full" disabled>
-              Assinar PRO (em breve)
-            </Button>
+            <CheckoutButton plan="monthly" enabled={billingEnabled} label="Assinar mensal" />
             <p className="mt-3 text-xs text-subtle text-center">
-              Checkout via AbacatePay chegando em breve.
+              Pagamento via Pix
+            </p>
+          </div>
+        </div>
+
+        <div className="relative flex flex-col p-6 rounded-lg border border-amber-400/70 bg-[linear-gradient(160deg,color-mix(in_oklab,#f59e0b_12%,var(--color-surface))_0%,var(--color-surface)_55%)] shadow-[0_0_0_1px_color-mix(in_oklab,#f59e0b_55%,transparent),0_20px_60px_-20px_color-mix(in_oklab,#f59e0b_45%,transparent)]">
+          <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full bg-amber-400 text-black text-[0.6875rem] font-bold uppercase tracking-wider whitespace-nowrap">
+            Oferta de lançamento
+          </span>
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg font-semibold flex items-center gap-2">
+              PRO Vitalício <Icon name="star" width={16} height={16} className="text-amber-400" />
+            </h3>
+            <Badge tone="warning">Pague uma vez</Badge>
+          </div>
+          <p className="text-[13px] text-muted mt-1">PRO para sempre, sem mensalidade.</p>
+          <div className="mt-5 flex items-baseline gap-1">
+            <span className="text-4xl font-bold">{PRO_LIFETIME_LABEL}</span>
+            <span className="text-muted">uma vez</span>
+          </div>
+          <div className="text-xs text-subtle mt-1">pagamento único · sem recorrência</div>
+          <div className="my-6 h-px bg-amber-400/30" />
+          <p className="text-xs uppercase tracking-wider text-subtle mb-3">Tudo do PRO, para sempre:</p>
+          <FeatureList items={pro} />
+          <div className="mt-auto pt-6">
+            <CheckoutButton plan="lifetime" enabled={billingEnabled} label="Comprar vitalício" />
+            <p className="mt-3 text-xs text-subtle text-center">
+              Pagamento único via Pix.
             </p>
           </div>
         </div>

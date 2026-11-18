@@ -28,6 +28,7 @@ const serverSchema = z.object({
   RESEND_FROM_EMAIL: z.string().email().optional(),
   CRON_SECRET: z.string().min(1).optional(),
   ABACATEPAY_DEV_KEY: z.string().min(1).optional(),
+  ABACATEPAY_PROD_KEY: z.string().min(1).optional(),
   ABACATEPAY_WEBHOOK: z.string().min(1).optional(),
   META_ACCESS_TOKEN: z.string().min(1).optional(),
   META_ADS_ACCESS_TOKEN: z.string().min(1).optional(),
