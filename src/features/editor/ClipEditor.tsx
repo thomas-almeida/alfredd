@@ -49,6 +49,7 @@ import { MobileEditorToolbar, type MobileEditorTool } from "./MobileEditorToolba
 import { MobileEditorTopBar } from "./MobileEditorTopBar";
 import { nextClip } from "./actions";
 import { TranscriptPanel } from "./TranscriptPanel";
+import { TemplatesControls } from "./TemplatesControls";
 import { windowTranscript, type Transcript } from "@/lib/transcript/client";
 
 /** Folga em volta do trecho escolhido, para o usuário poder ajustar o corte. */
@@ -306,7 +307,7 @@ function EditorBody({
   const [mobilePreview, setMobilePreview] = useState<"final" | "raw">("final");
   const [mobileTool, setMobileTool] = useState<MobileEditorTool>("trim");
   // Aba contextual do desktop, ancorada acima da timeline. null = nenhuma aberta.
-  const [activeTab, setActiveTab] = useState<"enquadramento" | "imagem" | "texto" | null>(null);
+  const [activeTab, setActiveTab] = useState<"enquadramento" | "imagem" | "texto" | "modelos" | null>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   // "Pular pra timeline": leva o foco pra onde a edição acontece depois de
   // escolher um formato/opção na aba contextual.
@@ -652,12 +653,13 @@ function EditorBody({
               <ContextTabBtn icon="grid" label="Enquadramento" active={activeTab === "enquadramento"} onClick={() => setActiveTab((t) => (t === "enquadramento" ? null : "enquadramento"))} />
               <ContextTabBtn icon="bookmark" label="Imagem / Marca" active={activeTab === "imagem"} onClick={() => setActiveTab((t) => (t === "imagem" ? null : "imagem"))} />
               <ContextTabBtn icon="subtitles" label="Texto" active={activeTab === "texto"} onClick={() => setActiveTab((t) => (t === "texto" ? null : "texto"))} />
+              <ContextTabBtn icon="copy" label="Modelos" active={activeTab === "modelos"} onClick={() => setActiveTab((t) => (t === "modelos" ? null : "modelos"))} />
             </div>
             {activeTab && (
               <div className="rounded-md border border-border bg-surface p-3">
                 <div className="mb-3 flex items-center justify-between">
                   <span className="text-sm font-semibold text-fg">
-                    {activeTab === "enquadramento" ? "Enquadramento e focos" : activeTab === "imagem" ? "Imagem / marca d’água" : "Texto e legendas"}
+                    {activeTab === "enquadramento" ? "Enquadramento e focos" : activeTab === "imagem" ? "Imagem / marca d’água" : activeTab === "modelos" ? "Modelos (moldes salvos)" : "Texto e legendas"}
                   </span>
                   <button type="button" onClick={() => setActiveTab(null)} aria-label="Fechar painel" className="text-muted hover:text-fg">
                     <Icon name="close" width={16} height={16} />
@@ -671,6 +673,7 @@ function EditorBody({
                   </div>
                 )}
                 {activeTab === "imagem" && <ImageOverlayControls />}
+                {activeTab === "modelos" && <TemplatesControls userId={userId} onApplied={focusTimeline} />}
                 {activeTab === "texto" && (
                   <div className="flex flex-col gap-3">
                     <TextOverlayControls />

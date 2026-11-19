@@ -32,6 +32,7 @@ import {
   type PaneSource,
 } from "@/lib/export/layouts";
 import { MOTION_PRESETS, applyMotionPreset, peakKeyframes, type MotionPreset } from "@/lib/editor/motion";
+import { extractTemplate, templatePatch, type EditorTemplate } from "@/lib/editor/presets";
 
 /** Estado salvo: aceita o formato antigo (trim único) para migração. */
 type SavedState = Partial<EditorState> & { trim?: Trim };
@@ -117,6 +118,10 @@ interface EditorStore extends EditorState {
   updateTextOverlay: (id: string, patch: Partial<Omit<TextOverlay, "id">>) => void;
   removeTextOverlay: (id: string) => void;
   setTextOverlayEdge: (id: string, which: "start" | "end", value: number) => void;
+  /** Captura o "look" atual (focos, textos, imagem/marca, enquadramento) como modelo. */
+  getTemplate: () => EditorTemplate;
+  /** Aplica um modelo ao clipe atual, reapontando os tempos à duração vigente. */
+  applyTemplate: (tpl: EditorTemplate) => void;
 }
 
 let lastCommit = 0;
@@ -493,6 +498,18 @@ export const useEditor = create<EditorStore>((set, get) => {
       if (!item) return;
       if (which === "start") get().updateTextOverlay(id, { start: value });
       else get().updateTextOverlay(id, { end: value });
+    },
+    getTemplate: () => extractTemplate(get().snapshot(), get().duration),
+    applyTemplate: (tpl) => {
+      const patch = templatePatch(tpl, get().duration);
+      lastCommit = 0;
+      // Modelo substitui o enquadramento inteiro; faixas extras de cam saem, como no setComposition.
+      commit({ ...patch, tracks: [] });
+      set({
+        activeTrack: 0,
+        activePaneId: patch.composition?.[0]?.id ?? "pane-1",
+        selectedLayout: -1,
+      });
     },
     setCrop: (key, rect) =>
       patchFraming((f) => {

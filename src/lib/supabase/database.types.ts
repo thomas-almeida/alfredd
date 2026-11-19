@@ -160,6 +160,15 @@ type BillingEventsRow = {
   created_at: string;
 }
 
+type EditorPresetsRow = {
+  id: string;
+  user_id: string;
+  name: string;
+  state: Json;
+  created_at: string;
+  updated_at: string;
+}
+
 type YtEngagementSnapshotsRow = {
   id: number;
   kind: "video" | "channel";
@@ -271,6 +280,7 @@ export interface Database {
       library_items: Table<LibraryItemsRow>;
       subscriptions: Table<SubscriptionsRow>;
       billing_events: Table<BillingEventsRow>;
+      editor_presets: Table<EditorPresetsRow>;
       clip_projects: Table<ClipProjectsRow>;
       renders: Table<RendersRow>;
       channel_presets: Table<ChannelPresetsRow>;
