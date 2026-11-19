@@ -3,6 +3,9 @@ import { getServerEnv } from "@/lib/env";
 import { collectTwitchAlerts } from "@/lib/monitoring/twitch";
 
 export const runtime = "nodejs";
+// Paginar os clipes da Twitch de várias fontes + gravar entregas pode passar dos
+// 15s padrão da Vercel; 60s é seguro tanto no Hobby quanto no Pro.
+export const maxDuration = 60;
 
 async function run(request: Request) {
   const secret = getServerEnv().CRON_SECRET;
